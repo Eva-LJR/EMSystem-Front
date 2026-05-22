@@ -120,167 +120,70 @@
 </template>
 
 <script>
+import request from '@/utils/request' // 确保引入了封装好的 axios
+
 export default {
-
   name: 'LabLeaderStaff',
-
   data() {
     return {
-
-      // 人员列表
       staffList: [],
-
-      // 弹窗
       dialogVisible: false,
-
-      // 当前人员
       currentStaff: null
-
     }
   },
-
   mounted() {
-
-    this.loadStaff()
-
+    this.loadStaff() // 页面挂载时加载真实数据
   },
-
   computed: {
-
-    // 详情表格
     detailTable() {
-
       if (!this.currentStaff) return []
-
       return [
-
-        {
-          label: '姓名',
-          value: this.currentStaff.name
-        },
-
-        {
-          label: '性别',
-          value: this.currentStaff.gender
-        },
-
-        {
-          label: '编号',
-          value: this.currentStaff.id
-        },
-
-        {
-          label: '密码',
-          value: this.currentStaff.password
-        }
-
+        { label: '姓名', value: this.currentStaff.username }, // 假设后端字段名为 username
+        { label: '编号', value: this.currentStaff.id },
+        { label: '角色', value: this.currentStaff.role } 
       ]
     }
-
   },
-
   methods: {
-
-    // ================= 加载管理员 =================
-    loadStaff() {
-
-      const list =
-        JSON.parse(localStorage.getItem('admin_staff'))
-
-      // 第一次进入系统默认数据
-      if (!list || list.length === 0) {
-
-        this.staffList = [
-
-          {
-            id: 'A001',
-            name: '张管理员',
-            gender: '男',
-            password: '123456'
-          },
-
-          {
-            id: 'A002',
-            name: '李管理员',
-            gender: '女',
-            password: '123456'
-          },
-
-          {
-            id: 'A003',
-            name: '王管理员',
-            gender: '男',
-            password: '123456'
-          }
-
-        ]
-
-        localStorage.setItem(
-          'admin_staff',
-          JSON.stringify(this.staffList)
-        )
-      }
-
-      else {
-
-        this.staffList = list
-
-      }
-
-    },
-
-    // ================= 打开详情 =================
-    openDetail(row) {
-
-      this.currentStaff = row
-
-      this.dialogVisible = true
-
-    },
-
-    // ================= 删除人员 =================
-    deleteStaff() {
-
-      this.$confirm(
-        '确定删除该人员吗？',
-        '提示',
-        {
-          confirmButtonText: '确定',
-          cancelButtonText: '取消',
-          type: 'warning'
+    // ================= 加载真实管理员列表 =================
+    async loadStaff() {
+      try {
+        const res = await request({
+          url: '/users/', // 替换为你后端的真实 API
+          method: 'get',
+          params: { role: 'admin' } // 只获取管理员
+        })
+        if (res.data.code === 20000) {
+          this.staffList = res.data.data
         }
-      )
-        .then(() => {
+      } catch (error) {
+        this.$message.error('获取人员列表失败')
+      }
+    },
 
-          // 删除
-          this.staffList =
-            this.staffList.filter(
-              item => item.id !== this.currentStaff.id
-            )
+    openDetail(row) {
+      this.currentStaff = row
+      this.dialogVisible = true
+    },
 
-          // 保存
-          localStorage.setItem(
-            'admin_staff',
-            JSON.stringify(this.staffList)
-          )
-
-          // 关闭
-          this.dialogVisible = false
-
-          // 提示
-          this.$message.success('删除成功')
-
+    // ================= 物理删除管理员 =================
+    async deleteStaff() {
+      this.$confirm('确定删除该管理员吗？', '提示', { type: 'warning' })
+        .then(async () => {
+          try {
+            await request({
+              url: `/users/${this.currentStaff.id}`, // 触发后端物理删除
+              method: 'delete'
+            })
+            this.$message.success('删除成功')
+            this.dialogVisible = false
+            this.loadStaff() // 刷新列表
+          } catch (error) {
+            this.$message.error('删除失败')
+          }
         })
-        .catch(() => {
-
-          this.$message.info('已取消删除')
-
-        })
-
     }
-
   }
-
 }
 </script>
 

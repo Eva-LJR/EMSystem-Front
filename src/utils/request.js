@@ -12,20 +12,27 @@ const service = axios.create({
 
 
 // axios请求拦截器
+// axios请求拦截器
 service.interceptors.request.use(
   config => {
-    let token = getToken();
-    if(token){
-      config.headers['token'] = token;
+    // 💡 核心改动：直接从本地/Cookie获取 Token，绕过 Vuex 状态未同步的坑
+    const token = getToken()
+    
+    if (token) {
+      // 确保每次请求都能雷打不动地带上最新的 Token
+      // 注意：'Bearer ' 后面有一个空格，千万别删掉
+      config.headers['Authorization'] = 'Bearer ' + token
+    } else {
+      console.warn('请求拦截器警告：本地未找到 Token，本次请求未携带认证信息');
     }
-    return config;
+    return config
   },
   error => {
-    console.log(error)
+    // do something with request error
+    console.log(error) // for debug
     return Promise.reject(error)
   }
 )
-
 
 //axios响应拦截器
 service.interceptors.response.use(res=>{

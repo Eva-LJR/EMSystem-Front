@@ -23,14 +23,22 @@
 //   })
 // }
 import request from '@/utils/request'
+import qs from 'qs' // 使用 qs 库转换数据
 
 export function login(data) {
   return request({
     url: '/vue-admin-template/user/login',
     method: 'post',
-    data
+    data: data // 直接传入 JSON 对象
   })
 }
+// export function login(data) {
+//   return request({
+//     url: '/vue-admin-template/user/login',
+//     method: 'post',
+//     data
+//   })
+// }
 
 export function getInfo(token) {
   return request({

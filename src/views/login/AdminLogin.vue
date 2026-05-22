@@ -5,30 +5,25 @@
 
       <h1 class="title">管理员登录</h1>
 
-      <!-- 用户名 -->
       <el-input
         v-model="username"
         placeholder="请输入用户名"
         class="input"
       />
 
-      <!-- 密码 -->
       <el-input
         v-model="password"
         placeholder="请输入密码"
         show-password
         class="input"
+        @keyup.enter.native="handleLogin"
       />
 
-      <!-- 身份选择 -->
       <el-radio-group v-model="role" class="role-group">
-
-        <el-radio label="manager">设备管理员</el-radio>
-        <el-radio label="leader">实验室负责人</el-radio>
-
+        <el-radio label="admin">设备管理员</el-radio>
+        <el-radio label="labLeader">实验室负责人</el-radio>
       </el-radio-group>
 
-      <!-- 登录按钮 -->
       <el-button
         type="primary"
         class="login-btn"
@@ -49,14 +44,21 @@ import { setToken } from '@/utils/auth'
 export default {
   data() {
     return {
-      username: '',   // 声明
-      password: '',   // 声明
-      role: 'manager'
+      username: '',   
+      password: '',   
+      role: 'admin' // 默认选中第一个“设备管理员”
     }
   },
   methods: {
     async handleLogin() {
-    console.log(this.username, this.password, this.role)
+      console.log('正在登录，参数：', this.username, this.password, this.role)
+      
+      // 表单简单校验
+      if (!this.username.trim() || !this.password.trim()) {
+        this.$message.warning('请输入用户名和密码')
+        return
+      }
+
       try {
         const res = await request({
           url: '/vue-admin-template/user/login',
@@ -64,30 +66,45 @@ export default {
           data: {
             username: this.username,
             password: this.password,
-            role: this.role
+            role: this.role // 传给后端的角色（对齐为 admin 或 labLeader）
           }
         })
-        console.log('完整响应:', res)                // 看完整响应
-        console.log('响应数据:', res.data)          // 看 data 字段
-        console.log('code:', res.data.code)        // 看 code 值
+        
+        console.log('完整响应:', res)               
+        console.log('响应数据:', res.data)          
+        console.log('code:', res.data?.code)        
 
-        if (res.data.code === 20000) {
-          console.log('登录成功，准备跳转')
-          const token = res.data.data.token
+        // 统一处理可能存在的响应结构差异（部分拦截器会自动剥离 res.data）
+        const responseData = res.data ? res.data : res
+
+        if (responseData.code === 20000) {
+          console.log('登录成功，准备保存 Token 并跳转')
+          
+          // 1. 保存 Token
+          const token = responseData.data.token
           setToken(token)
-          // 跳转...
-          if (this.role === 'manager') {
-            this.$router.push('/admin/device')
-          } else if (this.role === 'leader') {
-            this.$router.push('/labLeader/device')
+          
+          // 2. 修复点 2：建立清晰的角色路由映射表，完美对应你的 index.js 配置
+          const routeMap = {
+            'admin': '/admin/device',          // 设备管理员主页
+            'labLeader': '/labLeader/device'   // 实验室负责人主页
           }
+
+          const targetPath = routeMap[this.role]
+
+          if (targetPath) {
+            this.$router.push(targetPath)
+          } else {
+            this.$message.error('未找到对应角色的路由映射，请检查配置')
+          }
+
         } else {
           console.log('code 不是 20000，登录失败')
-          this.$message.error('登录失败：' + (res.data.message || '未知错误'))
+          this.$message.error('登录失败：' + (responseData.message || '未知错误'))
         }
       } catch (error) {
         console.error('请求异常:', error)
-        this.$message.error('请求失败：' + error.message)
+        this.$message.error('请求失败：' + (error.response?.data?.detail || error.message))
       }
     }
   }

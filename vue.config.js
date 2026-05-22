@@ -43,13 +43,14 @@ module.exports = {
       //   target: 'http://canzg-wsl.itheima.net/enterpise',
         // target: 'http://172.17.0.60:8200',
         //target: process.env.VUE_APP_URL,
-        target: process.env.VUE_APP_URL,
+        // target: process.env.VUE_APP_URL,
+        target: 'http://127.0.0.1:8000',  // 你的FastAPI后端地址
         ws: false,
         secure: false,
         changeOrigin: true,
-        pathRewrite:{
-          '^/api':''
-        }
+        // pathRewrite:{
+        //   '^/api':''
+        // }
       }
     },
     // before: require('./mock/mock-server.js')

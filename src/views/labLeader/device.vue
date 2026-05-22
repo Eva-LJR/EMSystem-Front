@@ -154,9 +154,9 @@
           <el-input v-model="deviceForm.model" />
         </el-form-item>
 
-        <el-form-item label="设备编号">
+        <!-- <el-form-item label="设备编号">
           <el-input v-model="deviceForm.id" />
-        </el-form-item>
+        </el-form-item> -->
 
         <el-form-item label="购入时间">
           <el-date-picker
@@ -298,58 +298,42 @@
 </template>
 
 <script>
+// 引入封装好的网络请求工具
+import request from '@/utils/request'
 
 export default {
-
   name: 'LabLeaderDevice',
-
   data() {
-
     return {
-
       searchKeyword: '',
-
       deviceList: [],
-
       addDialogVisible: false,
-
       detailDialogVisible: false,
-
       currentDevice: {},
-
+      
+      // 表单字段完全对齐后端 schemas.py 的 DeviceBase
       deviceForm: {
-
-        id: '',
         model: '',
-        buyTime: '',
+        buy_time: '',
         manufacturer: '',
         purpose: '',
         price: '',
         status: '可预约'
-
       }
-
     }
   },
 
   mounted() {
-
     this.loadDeviceList()
-
   },
 
   computed: {
-
+    // 前端模糊搜索过滤
     filterDeviceList() {
-
       return this.deviceList.filter(item => {
-
-        return item.model.includes(this.searchKeyword)
-
+        return item.model && item.model.includes(this.searchKeyword)
       })
-
     }
-
   },
 
   methods: {
@@ -357,122 +341,113 @@ export default {
     goLogin() {
       this.$router.push('/')
     },
-    // ================= 加载设备 =================
-    loadDeviceList() {
 
-      this.deviceList =
-        JSON.parse(localStorage.getItem('device_list')) || []
-
+    // ================= 1. 加载设备列表 (连通后端) =================
+    async loadDeviceList() {
+      try {
+        const res = await request({
+          url: '/devices/',
+          method: 'get'
+        })
+        const responseData = res.data ? res.data : res
+        if (responseData.code === 20000) {
+          this.deviceList = responseData.data
+        } else {
+          this.$message.error('获取设备列表失败')
+        }
+      } catch (error) {
+        console.error('加载设备异常:', error)
+      }
     },
 
-    // ================= 新增 =================
+    // ================= 打开新增弹窗 =================
     openAddDialog() {
-
+      // 初始化表单，注意不需要手动填 ID，后端 SQLite 会自动生成唯一 ID
       this.deviceForm = {
-
-        id: '',
         model: '',
-        buyTime: '',
+        buy_time: '',
         manufacturer: '',
         purpose: '',
         price: '',
         status: '可预约'
-
       }
-
       this.addDialogVisible = true
-
     },
 
-    // ================= 提交新增 =================
-    submitDevice() {
-
-      if (
-        !this.deviceForm.id ||
-        !this.deviceForm.model
-      ) {
-
-        this.$message.error('请填写完整信息')
+    // ================= 2. 提交采购的新设备 (连通后端) =================
+    async submitDevice() {
+      if (!this.deviceForm.model) {
+        this.$message.error('请填写设备型号')
         return
       }
 
-      const exists = this.deviceList.some(
-        item => item.id === this.deviceForm.id
-      )
-
-      if (exists) {
-
-        this.$message.error('设备编号已存在')
-        return
+      // 数据清洗：确保价格是数字，日期如果没选置为 null
+      const sendData = { ...this.deviceForm }
+      sendData.price = sendData.price ? Number(sendData.price) : 0
+      if (!sendData.buy_time) {
+        sendData.buy_time = null
       }
 
-      this.deviceList.push({
-
-        ...this.deviceForm,
-
-        availableTime: ''
-
-      })
-
-      localStorage.setItem(
-        'device_list',
-        JSON.stringify(this.deviceList)
-      )
-
-      this.loadDeviceList()
-
-      this.addDialogVisible = false
-
-      this.$message.success('设备添加成功')
-
+      try {
+        const res = await request({
+          url: '/devices/',
+          method: 'post',
+          data: sendData
+        })
+        
+        const responseData = res.data ? res.data : res
+        if (responseData.code === 20000) {
+          this.$message.success('新设备采购录入成功！')
+          this.addDialogVisible = false
+          this.loadDeviceList() // 刷新列表
+        } else {
+          this.$message.error('录入失败：' + responseData.message)
+        }
+      } catch (error) {
+        console.error('提交异常:', error)
+        this.$message.error('请求失败')
+      }
     },
 
-    // ================= 查看详情 =================
+    // ================= 打开查看详情弹窗 =================
     openDetailDialog(row) {
-
-      this.currentDevice = row
-
+      this.currentDevice = { ...row }
       this.detailDialogVisible = true
-
     },
 
-    // ================= 报废 =================
+    // ================= 3. 拍板报废设备 (连通后端) =================
     setScrap() {
-
-      const index = this.deviceList.findIndex(
-        item => item.id === this.currentDevice.id
-      )
-
-      if (index !== -1) {
-
-        this.deviceList[index].status = '已报废'
-
-      }
-
-      localStorage.setItem(
-        'device_list',
-        JSON.stringify(this.deviceList)
-      )
-
-      this.loadDeviceList()
-
-      this.detailDialogVisible = false
-
-      this.$message.success('设备状态修改成功')
-
+      this.$confirm(`确认要将设备「${this.currentDevice.model}」正式报废吗？此操作将使该设备永久不可预约。`, '警告', {
+        confirmButtonText: '确认报废',
+        cancelButtonText: '取消',
+        type: 'error'
+      }).then(async () => {
+        try {
+          const res = await request({
+            url: `/devices/${this.currentDevice.id}`, // 复用后端的局部更新接口
+            method: 'put',
+            data: { status: '已报废' }
+          })
+          
+          const responseData = res.data ? res.data : res
+          if (responseData.code === 20000) {
+            this.$message.success('设备已成功标记为报废')
+            this.detailDialogVisible = false
+            this.loadDeviceList() // 刷新表格状态
+          }
+        } catch (error) {
+          console.error('报废异常:', error)
+          this.$message.error('操作失败')
+        }
+      }).catch(() => {})
     },
 
     // ================= 日期格式化 =================
     formatDate(time) {
-
       if (!time) return '-'
-
       return new Date(time).toLocaleDateString()
-
     }
-
   }
-
 }
 </script>
 
