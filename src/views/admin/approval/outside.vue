@@ -1,39 +1,23 @@
 <template>
   <div class="page">
-
-    <!-- 标题 -->
     <div class="header">
       校外人员初审单
     </div>
 
-    <!-- 表格 -->
     <el-card class="table-card">
-
-      <el-table
-        :data="bookingList"
-        border
-        style="width: 100%"
-      >
-
-        <!-- 预约编号 -->
-        <el-table-column
-          label="预约编号"
-          align="center"
-          width="220"
-        >
+      <el-table :data="bookingList" border style="width: 100%">
+        <el-table-column label="预约编号" align="center" width="100">
           <template slot-scope="scope">
             {{ scope.row.id }}
           </template>
         </el-table-column>
 
-        <!-- 操作 -->
-        <el-table-column
-          label="操作"
-          align="center"
-        >
-          <template slot-scope="scope">
+        <el-table-column label="申请人" prop="applicant_name" align="center" width="150" />
+        <el-table-column label="单位" prop="company" align="center" />
+        <el-table-column label="预约设备" prop="device_name" align="center" />
 
-            <!-- 待审批 -->
+        <el-table-column label="状态/操作" align="center" width="180">
+          <template slot-scope="scope">
             <el-button
               v-if="scope.row.status === '待管理员初审'"
               type="primary"
@@ -41,321 +25,148 @@
               round
               @click="openDialog(scope.row)"
             >
-              查看详情
+              查看详情 / 审批
             </el-button>
 
-            <!-- 已通过 -->
             <el-tag
-              v-else-if="scope.row.status === '待负责人审批'"
+              v-else-if="scope.row.status === '待负责人审批' || scope.row.status === '待财务缴费' || scope.row.status === '负责人已通过'"
               type="success"
             >
-              已通过
+              初审已通过
             </el-tag>
 
-            <!-- 已驳回 -->
             <el-tag
-              v-else
+              v-else-if="scope.row.status.includes('驳回')"
               type="danger"
             >
               已驳回
             </el-tag>
-
           </template>
         </el-table-column>
-
       </el-table>
-
-      <!-- 返回 -->
-      <div class="footer">
-        <el-button
-          type="primary"
-          round
-          @click="$router.push('/admin/approval')"
-        >
-          返回待审批页
-        </el-button>
-      </div>
-
     </el-card>
 
-    <!-- ========================= -->
-    <!-- 详情弹窗 -->
-    <!-- ========================= -->
-
-    <el-dialog
-      title="校外人员预约详情审批"
-      :visible.sync="dialogVisible"
-      width="720px"
-    >
-
-      <el-table
-        :data="detailTable"
-        border
-      >
-
-        <el-table-column
-          prop="label"
-          label="字段"
-          width="220"
-        />
-
-        <el-table-column
-          prop="value"
-          label="内容"
-        />
-
-      </el-table>
+    <el-dialog title="预约单初审详情" :visible.sync="detailDialog" width="650px">
+      <el-form label-width="90px">
+        <el-row>
+          <el-col :span="12"><el-form-item label="申请人:"><b>{{ currentBooking.applicant_name }} ({{ currentBooking.applicant_id }})</b></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="所在单位:"><b>{{ currentBooking.company }}</b></el-form-item></el-col>
+        </el-row>
+        <el-row>
+          <el-col :span="12"><el-form-item label="预约设备:"><b>{{ currentBooking.device_name }}</b></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="申请时间:">{{ format(currentBooking.created_at) }}</el-form-item></el-col>
+        </el-row>
+        <el-form-item label="预约时段:">
+          <el-tag size="medium">{{ format(currentBooking.start_time) }}</el-tag>
+          <span style="margin: 0 10px;">至</span>
+          <el-tag size="medium" type="warning">{{ format(currentBooking.end_time) }}</el-tag>
+        </el-form-item>
+        <el-form-item label="申请事由:">
+          <div style="background: #f8f9fa; padding: 10px; border-radius: 4px;">{{ currentBooking.reason }}</div>
+        </el-form-item>
+      </el-form>
 
       <div slot="footer" class="dialog-footer">
-
-        <el-button
-          type="warning"
-          round
-          @click="checkDeviceStatus"
-        >
-          查看预约时段设备状态
-        </el-button>
-
-        <el-button
-          type="success"
-          round
-          @click="approve"
-        >
-          通过
-        </el-button>
-
-        <el-button
-          type="danger"
-          round
-          @click="reject"
-        >
-          驳回
-        </el-button>
-
+        <el-button type="danger" @click="reject">驳 回</el-button>
+        <el-button type="primary" @click="pass">同意并通过</el-button>
       </div>
-
     </el-dialog>
-
   </div>
 </template>
 
 <script>
+import request from '@/utils/request'
+
 export default {
-
-  name: 'AdminOutsideApproval',
-
   data() {
     return {
-
       bookingList: [],
-      dialogVisible: false,
-      current: null
-
+      detailDialog: false,
+      currentBooking: {}
     }
   },
-
-  mounted() {
+  created() {
     this.loadData()
   },
-
-  computed: {
-
-    detailTable() {
-
-      if (!this.current) return []
-
-      return [
-
-        {
-          label: '申请人员姓名编号',
-          value: `${this.current.name || '未知'} (${this.current.id || '未知'})`
-        },
-
-        {
-          label: '所在单位',
-          value: this.current.company || '未知'
-        },
-
-        {
-          label: '预约设备',
-          value: this.current.deviceName
-        },
-
-        {
-          label: '预约时段',
-          value: `${this.format(this.current.startTime)} ~ ${this.format(this.current.endTime)}`
-        },
-
-        {
-          label: '预约用途',
-          value: this.current.reason
-        },
-
-        {
-          label: '申请时间',
-          value: this.format(this.current.createTime)
-        }
-
-      ]
-
-    }
-
-  },
-
   methods: {
-
-    /* =====================
-       加载数据
-    ===================== */
-
-    loadData() {
-
-      const all =
-        JSON.parse(localStorage.getItem('booking_all')) || []
-
-      this.bookingList = all.filter(i => {
-        return i.role === 'outside' &&
-          i.currentStep === 'admin'
-      })
-
+    // 💡 接入真后端：只查询流转到“管理员”这里的“校外人员”申请
+    async loadData() {
+      try {
+        const res = await request({
+          url: '/approvals/',
+          method: 'get',
+          params: { role: 'outside', current_step: 'admin' }
+        })
+        const responseData = res.data ? res.data : res
+        if (responseData.code === 20000) {
+          this.bookingList = responseData.data
+        }
+      } catch (error) {
+        this.$message.error('获取单据失败')
+      }
     },
-
-    /* =====================
-       打开弹窗
-    ===================== */
-
     openDialog(row) {
-      this.current = row
-      this.dialogVisible = true
+      this.currentBooking = row
+      this.detailDialog = true
     },
-
-    /* =====================
-       设备状态查询
-    ===================== */
-
-    checkDeviceStatus() {
-
-      const devices =
-        JSON.parse(localStorage.getItem('device_list')) || []
-
-      const d = devices.find(
-        i => i.model === this.current.deviceName
-      )
-
-      if (!d) {
-        this.$message.error('设备不存在')
-        return
+    // 💡 接入真后端：通过接口
+    async pass() {
+      try {
+        await request({
+          url: `/approvals/${this.currentBooking.id}/approve`,
+          method: 'put'
+        })
+        this.$message.success('初审通过，已流转至负责人审批')
+        this.detailDialog = false
+        this.loadData()
+      } catch (error) {
+        this.$message.error('操作失败')
       }
-
-      this.$alert(
-        `当前设备状态：${d.status}`,
-        '设备状态',
-        { confirmButtonText: '确定' }
-      )
-
     },
-
-    /* =====================
-       通过
-    ===================== */
-
-    approve() {
-
-      const all =
-        JSON.parse(localStorage.getItem('booking_all')) || []
-
-      const idx = all.findIndex(i => i.id === this.current.id)
-
-      if (idx !== -1) {
-        all[idx].status = '待负责人审批'
-        all[idx].currentStep = 'leader'
+    // 💡 接入真后端：驳回接口
+    async reject() {
+      try {
+        await request({
+          url: `/approvals/${this.currentBooking.id}/reject`,
+          method: 'put'
+        })
+        this.$message.success('已驳回申请')
+        this.detailDialog = false
+        this.loadData()
+      } catch (error) {
+        this.$message.error('操作失败')
       }
-
-      localStorage.setItem(
-        'booking_all',
-        JSON.stringify(all)
-      )
-
-      this.$message.success('审批通过')
-
-      this.dialogVisible = false
-      this.loadData()
-
     },
-
-    /* =====================
-       驳回
-    ===================== */
-
-    reject() {
-
-      const all =
-        JSON.parse(localStorage.getItem('booking_all')) || []
-
-      const idx = all.findIndex(i => i.id === this.current.id)
-
-      if (idx !== -1) {
-        all[idx].status = '管理员已驳回'
-        all[idx].currentStep = 'end'
-      }
-
-      localStorage.setItem(
-        'booking_all',
-        JSON.stringify(all)
-      )
-
-      this.$message.error('已驳回')
-
-      this.dialogVisible = false
-      this.loadData()
-
-    },
-
-    /* =====================
-       时间格式化
-    ===================== */
-
     format(t) {
       if (!t) return ''
-      const d = new Date(t)
-      return d.toLocaleString()
+      const date = new Date(t)
+      const y = date.getFullYear()
+      const m = String(date.getMonth() + 1).padStart(2, '0')
+      const d = String(date.getDate()).padStart(2, '0')
+      const h = String(date.getHours()).padStart(2, '0')
+      const mm = String(date.getMinutes()).padStart(2, '0')
+      return `${y}-${m}-${d} ${h}:${mm}`
     }
-
   }
-
 }
 </script>
 
 <style scoped>
-
 .page {
-  padding: 30px;
-  background: #f5f7fa;
   min-height: 100vh;
+  background: #f5f7fa;
+  padding: 30px;
 }
-
 .header {
-  text-align: center;
-  font-size: 28px;
-  font-weight: 700;
-  color: #409EFF;
-  margin-bottom: 20px;
+  font-size: 24px;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 25px;
 }
-
 .table-card {
-  border-radius: 14px;
+  border-radius: 12px;
 }
-
-.footer {
-  margin-top: 20px;
-  display: flex;
-  justify-content: flex-end;
+.detail-form {
+  margin-top: -15px;
 }
-
-.dialog-footer {
-  display: flex;
-  gap: 10px;
-  justify-content: flex-end;
-}
-
 </style>

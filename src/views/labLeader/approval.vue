@@ -1,144 +1,105 @@
 <template>
   <div class="approval-page">
 
-    <!-- 标题 -->
     <div class="page-header">
-
-      <div class="title">
-        校外人员终审
-      </div>
-
-      <div class="desc">
-        处理校外人员预约终审申请
-      </div>
-
+      <div class="title">校外人员终审</div>
+      <div class="desc">处理校外人员预约终审申请</div>
     </div>
 
-    <!-- 列表 -->
     <el-card shadow="never" class="table-card">
+      <el-table :data="approvalList" border style="width: 100%">
 
-      <el-table
-        :data="approvalList"
-        border
-        style="width: 100%"
-      >
-
-        <!-- 预约编号 -->
-        <el-table-column
-          label="预约编号"
-          align="center"
-        >
-
+        <el-table-column label="预约编号" align="center" width="100">
           <template slot-scope="scope">
             {{ scope.row.id }}
           </template>
-
         </el-table-column>
+        
+        <el-table-column label="预约设备" prop="device_name" align="center" />
+        
+        <el-table-column label="申请人" prop="applicant_name" align="center" width="150" />
 
-        <!-- 操作 -->
-        <el-table-column
-          label="操作"
-          align="center"
-        >
-
+        <el-table-column label="状态/操作" align="center" width="200">
           <template slot-scope="scope">
 
-            <!-- 待审批 -->
             <el-button
-              v-if="scope.row.status === STATUS.OUTSIDE_SECOND"
+              v-if="scope.row.status === '待负责人审批'"
               type="primary"
               size="mini"
               @click="openDetail(scope.row)"
             >
-              查看详情
+              查看详情 / 审批
             </el-button>
 
-            <!-- 已通过 -->
             <el-tag
-              v-else-if="scope.row.status === STATUS.APPROVED"
+              v-else-if="scope.row.status === '负责人已通过' || scope.row.status === '待财务缴费'"
               type="success"
             >
-              预约成功
+              已通过
             </el-tag>
 
-            <!-- 已驳回 -->
             <el-tag
-              v-else
+              v-else-if="scope.row.status.includes('驳回')"
               type="danger"
             >
               已驳回
             </el-tag>
 
           </template>
-
         </el-table-column>
 
       </el-table>
-
     </el-card>
 
-    <!-- ================= 详情弹窗 ================= -->
     <el-dialog
       title="校外人员预约终审"
       :visible.sync="dialogVisible"
-      width="700px"
+      width="650px"
     >
+      <el-form label-width="90px" class="detail-form">
+        <el-row>
+          <el-col :span="12">
+            <el-form-item label="申请人员:">
+              <b>{{ currentRow.userInfo }}</b>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="所在单位:">
+              <b>{{ currentRow.company }}</b>
+            </el-form-item>
+          </el-col>
+        </el-row>
 
-      <el-descriptions
-        :column="2"
-        border
-      >
+        <el-row>
+          <el-col :span="12">
+            <el-form-item label="预约设备:">
+              <b>{{ currentRow.deviceName }}</b>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="申请时间:">
+              {{ formatTime(currentRow.createTime) }}
+            </el-form-item>
+          </el-col>
+        </el-row>
 
-        <el-descriptions-item label="申请人员姓名编号">
-          {{ currentRow.userInfo }}
-        </el-descriptions-item>
+        <el-form-item label="预约时段:">
+          <el-tag size="medium">{{ formatTime(currentRow.startTime) }}</el-tag>
+          <span style="margin: 0 10px; color: #909399;">至</span>
+          <el-tag size="medium" type="warning">{{ formatTime(currentRow.endTime) }}</el-tag>
+        </el-form-item>
 
-        <el-descriptions-item label="所在单位">
-          {{ currentRow.company }}
-        </el-descriptions-item>
+        <el-form-item label="预约用途:">
+          <div style="background: #f8f9fa; padding: 10px; border-radius: 4px;">
+            {{ currentRow.reason }}
+          </div>
+        </el-form-item>
+      </el-form>
 
-        <el-descriptions-item label="预约设备">
-          {{ currentRow.deviceName }}
-        </el-descriptions-item>
-
-        <el-descriptions-item label="预约时段">
-          {{ formatTime(currentRow.startTime) }}
-          至
-          {{ formatTime(currentRow.endTime) }}
-        </el-descriptions-item>
-
-        <el-descriptions-item label="预约用途">
-          {{ currentRow.reason }}
-        </el-descriptions-item>
-
-        <el-descriptions-item label="申请时间">
-          {{ formatTime(currentRow.createTime) }}
-        </el-descriptions-item>
-
-      </el-descriptions>
-
-      <!-- 底部按钮 -->
-      <div
-        slot="footer"
-        class="dialog-footer"
-      >
-
-        <el-button
-          type="danger"
-          @click="rejectBooking"
-        >
-          驳回
-        </el-button>
-
-        <el-button
-          type="primary"
-          @click="approveBooking"
-        >
-          通过
-        </el-button>
-
+      <div slot="footer" class="dialog-footer">
+        <el-button type="danger" @click="rejectBooking">驳 回</el-button>
+        <el-button type="primary" @click="approveBooking">同意并通过</el-button>
       </div>
-
     </el-dialog>
 
   </div>
@@ -239,55 +200,35 @@ export default {
 </script>
 
 <style scoped>
-
 .approval-page {
-
   padding: 30px;
   background: #f5f7fa;
   min-height: 100vh;
-
 }
 
-/* 标题 */
-
 .page-header {
-
   margin-bottom: 20px;
-
 }
 
 .title {
-
   font-size: 28px;
   font-weight: 700;
   color: #1e3a8a;
-
 }
 
 .desc {
-
   margin-top: 6px;
   color: #909399;
-
 }
-
-/* 卡片 */
 
 .table-card {
-
   border-radius: 14px;
   border: none;
-
 }
 
-/* 底部按钮 */
-
 .dialog-footer {
-
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-
 }
-
 </style>
