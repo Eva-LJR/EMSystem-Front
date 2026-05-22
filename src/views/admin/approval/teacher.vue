@@ -1,463 +1,302 @@
 <template>
   <div class="page">
 
-    <!-- 标题 -->
     <div class="top-title">
-      教师预约单
+      教师预约单初审
     </div>
 
     <div class="content">
 
-      <!-- 预约列表 -->
-      <el-card>
-
+      <el-card shadow="never">
         <el-table
           :data="bookingList"
           border
           style="width:100%"
         >
-
-          <!-- 预约编号 -->
           <el-table-column
             label="预约编号"
             align="center"
-            width="220"
+            width="120"
           >
-
             <template slot-scope="scope">
               {{ scope.row.id }}
             </template>
-
           </el-table-column>
 
-          <!-- 操作 -->
+          <el-table-column label="申请教师" prop="applicant_name" align="center" width="150" />
+          <el-table-column label="所属学院" prop="college" align="center" width="180" />
+          <el-table-column label="预约设备" prop="device_name" align="center" />
+
           <el-table-column
-            label="操作"
+            label="状态 / 操作"
             align="center"
+            width="200"
           >
-
             <template slot-scope="scope">
-
-              <!-- 待审批 -->
-              <div
-                v-if="scope.row.status === '待管理员审批'"
-              >
-
+              <div v-if="scope.row.status === '待管理员初审'">
                 <el-button
                   type="primary"
                   size="mini"
+                  round
                   @click="openDetail(scope.row)"
                 >
-                  查看详情
+                  查看详情 / 审批
                 </el-button>
-
               </div>
 
-              <!-- 已通过 -->
-              <div
-                v-else-if="
-                  scope.row.status === '管理员已通过'
-                "
-              >
-
-                <el-tag type="success">
-                  已通过
-                </el-tag>
-
+              <div v-else-if="scope.row.status === '待负责人审批' || scope.row.status === '负责人已通过' || scope.row.status === '待财务缴费'">
+                <el-tag type="success">初审已通过</el-tag>
               </div>
 
-              <!-- 已驳回 -->
+              <div v-else-if="scope.row.status.includes('驳回')">
+                <el-tag type="danger">已驳回</el-tag>
+              </div>
+
               <div v-else>
-
-                <el-tag type="danger">
-                  已驳回
-                </el-tag>
-
+                <el-tag type="info">{{ scope.row.status }}</el-tag>
               </div>
-
             </template>
-
           </el-table-column>
-
         </el-table>
-
       </el-card>
 
-      <!-- 底部按钮 -->
       <div class="bottom-btn">
-
         <el-button
           type="primary"
           @click="$router.push('/admin/approval')"
         >
           返回待审批页
         </el-button>
-
       </div>
 
     </div>
 
-    <!-- ========================= -->
-    <!-- 预约详情弹窗 -->
-    <!-- ========================= -->
-
     <el-dialog
-      title="预约详情审批"
+      title="教师预约单详情初审"
       :visible.sync="detailDialog"
       width="700px"
     >
-
       <el-table
         :data="detailTable"
         border
         style="width:100%"
       >
-
         <el-table-column
           prop="label"
           label="字段"
           width="200"
         />
-
         <el-table-column
           prop="value"
           label="内容"
         />
-
       </el-table>
 
-      <!-- 底部按钮 -->
       <div
         slot="footer"
         style="display:flex;justify-content:space-between"
       >
-
-        <!-- 查看设备状态 -->
         <el-button
           type="warning"
           @click="checkDeviceStatus"
         >
-          查看预约时段设备状态
+          查看预约时段设备实时状态
         </el-button>
 
         <div>
-
           <el-button
             type="success"
             @click="approve"
           >
-            通过
+            同意并通过
           </el-button>
-
           <el-button
             type="danger"
             @click="reject"
           >
             驳回
           </el-button>
-
         </div>
-
       </div>
-
     </el-dialog>
 
   </div>
 </template>
 
 <script>
+import request from '@/utils/request'
 
 export default {
-
   data() {
-
     return {
-
       bookingList: [],
-
+      deviceList: [], // 实时存放系统最新设备列表状态
       detailDialog: false,
-
       currentBooking: null
-
     }
-
   },
-
   computed: {
-
+    // 💡 适配真后端返回的真实字段 (snake_case)
     detailTable() {
-
       if (!this.currentBooking) return []
-
       return [
-
         {
-          label: '申请教师姓名编号',
-          value:
-            this.currentBooking.teacherName ||
-            '教师001'
+          label: '申请教师姓名 (工号)',
+          value: `${this.currentBooking.applicant_name || '未知'} (${this.currentBooking.applicant_id || '-'})`
         },
-
         {
           label: '所属学院',
-          value:
-            this.currentBooking.college ||
-            '计算机学院'
+          value: this.currentBooking.college || '未填写'
         },
-
         {
-          label: '预约设备',
-          value:
-          this.currentBooking.deviceName
+          label: '预约设备型号',
+          value: this.currentBooking.device_name || '-'
         },
-
         {
           label: '预约时段',
-          value:
-            this.format(this.currentBooking.startTime)
-            +
-            ' 至 '
-            +
-            this.format(this.currentBooking.endTime)
+          value: `${this.format(this.currentBooking.start_time)} 至 ${this.format(this.currentBooking.end_time)}`
         },
-
         {
           label: '预约用途',
-          value:
-          this.currentBooking.reason
+          value: this.currentBooking.reason || '-'
         },
-
         {
-          label: '申请时间',
-          value:
-            this.format(this.currentBooking.createTime)
+          label: '申请发起时间',
+          value: this.format(this.currentBooking.created_at)
+        }
+      ]
+    }
+  },
+  mounted() {
+    this.loadData()
+  },
+  methods: {
+    // 💡 连通真后端：同时拉取流转到当前管理员处的教师申请，以及最新的设备库状态
+    async loadData() {
+      try {
+        const [appRes, devRes] = await Promise.all([
+          request({
+            url: '/approvals/',
+            method: 'get',
+            params: { role: 'teacher', current_step: 'admin' }
+          }),
+          request({
+            url: '/devices/',
+            method: 'get'
+          })
+        ])
+
+        const resData = appRes.data ? appRes.data : appRes
+        if (resData.code === 20000) {
+          this.bookingList = resData.data
         }
 
-      ]
-
-    }
-
-  },
-
-  mounted() {
-
-    this.loadData()
-
-  },
-
-  methods: {
-
-    /* =========================
-       加载数据
-    ========================= */
-
-    loadData() {
-
-      const all =
-        JSON.parse(localStorage.getItem('booking_all'))
-        || []
-
-      this.bookingList = all.filter(item => {
-
-        return item.role === 'teacher'
-
-      })
-
+        const devData = devRes.data ? devRes.data : devRes
+        if (devData.code === 20000) {
+          this.deviceList = devData.data
+        }
+      } catch (error) {
+        this.$message.error('获取单据或设备数据失败')
+      }
     },
-
-    /* =========================
-       打开详情
-    ========================= */
 
     openDetail(row) {
-
       this.currentBooking = row
-
       this.detailDialog = true
-
     },
 
-    /* =========================
-       查看设备状态
-    ========================= */
-
+    // 💡 从真实的后端设备列表查状态，不再看 localStorage 缓存假数据
     checkDeviceStatus() {
+      if (!this.currentBooking) return
 
-      const deviceList =
-        JSON.parse(localStorage.getItem('device_list'))
-        || []
-
-      const device =
-        deviceList.find(item => {
-
-          return item.model ===
-            this.currentBooking.deviceName
-
-        })
+      const device = this.deviceList.find(item => {
+        return item.model === this.currentBooking.device_name
+      })
 
       if (!device) {
-
-        this.$message.error('设备不存在')
-
+        this.$message.error('该预约关联的设备型号在系统库中未找到')
         return
-
       }
 
       this.$alert(
-
-        `当前设备状态：${device.status}`,
-
-        '设备状态',
-
-        {
-          confirmButtonText: '确定'
-        }
-
+        `当前数据库中该设备运行状态为：【${device.status}】`,
+        '设备实时状态校验',
+        { confirmButtonText: '确定' }
       )
-
     },
 
-    /* =========================
-       审批通过
-    ========================= */
-
-    approve() {
-
-      const list =
-        JSON.parse(localStorage.getItem('booking_all'))
-        || []
-
-      const index =
-        list.findIndex(item => {
-
-          return item.id ===
-            this.currentBooking.id
-
+    // 💡 接入真初审通过接口
+    async approve() {
+      try {
+        await request({
+          url: `/approvals/${this.currentBooking.id}/approve`,
+          method: 'put'
         })
-
-      if (index !== -1) {
-
-        list[index].status =
-          '管理员已通过'
-
-        list[index].currentStep =
-          'end'
-
+        this.$message.success('初审通过')
+        this.detailDialog = false
+        this.loadData()
+      } catch (error) {
+        this.$message.error('审批操作失败')
       }
-
-      localStorage.setItem(
-        'booking_all',
-        JSON.stringify(list)
-      )
-
-      this.$message.success('审批通过')
-
-      this.detailDialog = false
-
-      this.loadData()
-
     },
 
-    /* =========================
-       审批驳回
-    ========================= */
-
-    reject() {
-
-      const list =
-        JSON.parse(localStorage.getItem('booking_all'))
-        || []
-
-      const index =
-        list.findIndex(item => {
-
-          return item.id ===
-            this.currentBooking.id
-
+    // 💡 接入真初审驳回接口
+    async reject() {
+      try {
+        await request({
+          url: `/approvals/${this.currentBooking.id}/reject`,
+          method: 'put'
         })
-
-      if (index !== -1) {
-
-        list[index].status =
-          '管理员已驳回'
-
-        list[index].currentStep =
-          'end'
-
+        this.$message.error('已驳回该申请')
+        this.detailDialog = false
+        this.loadData()
+      } catch (error) {
+        this.$message.error('驳回操作失败')
       }
-
-      localStorage.setItem(
-        'booking_all',
-        JSON.stringify(list)
-      )
-
-      this.$message.error('审批驳回')
-
-      this.detailDialog = false
-
-      this.loadData()
-
     },
 
-    /* =========================
-       时间格式化
-    ========================= */
-
+    // 时间格式化
     format(t) {
-
       if (!t) return ''
-
-      return new Date(t)
-        .toLocaleString()
-
+      const date = new Date(t)
+      const y = date.getFullYear()
+      const m = String(date.getMonth() + 1).padStart(2, '0')
+      const d = String(date.getDate()).padStart(2, '0')
+      const h = String(date.getHours()).padStart(2, '0')
+      const mm = String(date.getMinutes()).padStart(2, '0')
+      return `${y}-${m}-${d} ${h}:${mm}`
     }
-
   }
-
 }
 </script>
 
 <style scoped>
-
 .page{
   min-height:100vh;
   background:#f5f7fa;
   padding:30px;
 }
-
 .top-title{
-
   width:100%;
   height:60px;
-
   background:#409EFF;
-
   color:white;
-
   display:flex;
   align-items:center;
   justify-content:center;
-
   font-size:24px;
   font-weight:700;
-
   border-radius:12px;
-
   margin-bottom:25px;
 }
-
 .content{
   background:white;
   padding:25px;
   border-radius:12px;
 }
-
 .bottom-btn{
-
   margin-top:25px;
-
   display:flex;
   justify-content:flex-end;
 }
-
 </style>
