@@ -202,10 +202,16 @@ export default {
     },
 
     // ================= 预约成功数 =================
+    // bookingTotal() {
+    //   // 💡 适配后端的审批状态（假设通过状态为 APPROVED 或 已通过）
+    //   return this.bookingList.filter(
+    //     item => item.status === 'APPROVED' || item.status === '已通过'
+    //   ).length
+    // },
     bookingTotal() {
-      // 💡 适配后端的审批状态（假设通过状态为 APPROVED 或 已通过）
+      // 💡 匹配真实的后端数据库状态
       return this.bookingList.filter(
-        item => item.status === 'APPROVED' || item.status === '已通过'
+        item => item.status === '负责人已通过'
       ).length
     },
 
@@ -225,7 +231,7 @@ export default {
 
       // 统计已通过预约
       this.bookingList
-        .filter(i => i.status === 'APPROVED' || i.status === '已通过')
+        .filter(i => i.status === 'APPROVED' || i.status === '已通过' || i.status === '负责人已通过')
         .forEach(item => {
           // 💡 核心修复：真实的审批单里往往只存了 device_id，需要去 deviceList 找对应的设备名
           const device = this.deviceList.find(d => d.id === item.device_id)

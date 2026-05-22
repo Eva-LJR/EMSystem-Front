@@ -145,185 +145,96 @@
 </template>
 
 <script>
-
-const STATUS = {
-
-  // 管理员审批
-  OUTSIDE_APPLY: '待管理员初审',
-
-  // 负责人审批
-  OUTSIDE_SECOND: '待负责人审批',
-
-  // 待缴费
-  WAIT_PAY: '待缴费',
-
-  // 已通过
-  APPROVED: '已通过',
-
-  // 已驳回
-  REJECTED: '已驳回'
-
-}
+import request from '@/utils/request'
 
 export default {
-
   name: 'LabLeaderApproval',
-
   data() {
-
     return {
-
-      STATUS,
-
       approvalList: [],
-
       dialogVisible: false,
-
       currentRow: {}
-
     }
-
   },
-
   mounted() {
-
     this.loadApprovalList()
-
   },
-
   methods: {
-
-    // 加载终审列表
-    loadApprovalList() {
-
-      const all =
-        JSON.parse(localStorage.getItem('booking_all')) || []
-
-      this.approvalList = all.filter(item => {
-
-        return (
-          (item.role || '').toLowerCase() === 'outside'
-          &&
-          (
-            item.status === STATUS.OUTSIDE_SECOND
-            ||
-            item.status === STATUS.APPROVED
-            ||
-            item.status === STATUS.REJECTED
-          )
-        )
-
-      })
-
+    // ================= 1. 拉取真实终审列表 =================
+    async loadApprovalList() {
+      try {
+        const res = await request({
+          url: '/approvals/',
+          method: 'get',
+          // 💡 精准狙击：只拉取流转到负责人环节（leader）的校外人员单据
+          params: { role: 'outside', current_step: 'leader' }
+        })
+        const responseData = res.data ? res.data : res
+        if (responseData.code === 20000) {
+          this.approvalList = responseData.data
+        }
+      } catch (error) {
+        this.$message.error('获取列表失败')
+      }
     },
 
-    // 打开详情
+    // ================= 打开详情弹窗 =================
     openDetail(row) {
-
       this.currentRow = {
-
         ...row,
-
-        userInfo:
-          `${row.userName || '校外人员'} (${row.userId || row.id})`,
-
-        company:
-          row.company || '外部单位'
-
+        // 映射后端的真实字段名
+        userInfo: `${row.applicant_name} (${row.applicant_id})`,
+        company: row.company || '外部单位',
+        deviceName: row.device_name,
+        startTime: row.start_time,
+        endTime: row.end_time,
+        createTime: row.created_at
       }
-
       this.dialogVisible = true
-
     },
 
-    // 通过
-    approveBooking() {
-
-      const all =
-        JSON.parse(localStorage.getItem('booking_all')) || []
-
-      const index =
-        all.findIndex(i => i.id === this.currentRow.id)
-
-      if (index !== -1) {
-
-        // 负责人审批通过
-        // 进入待缴费状态
-
-        all[index].status = STATUS.WAIT_PAY
-
-        all[index].currentStep = 'pay'
-
+    // ================= 2. 真实通过接口 =================
+    async approveBooking() {
+      try {
+        await request({ 
+          url: `/approvals/${this.currentRow.id}/approve`, 
+          method: 'put' 
+        })
+        this.$message.success('终审通过，已流转至财务待缴费环节')
+        this.dialogVisible = false
+        this.loadApprovalList() // 刷新列表
+      } catch (error) {
+        this.$message.error('操作失败')
       }
-
-      localStorage.setItem(
-        'booking_all',
-        JSON.stringify(all)
-      )
-
-      this.$message.success('终审通过，请用户缴费')
-
-      this.dialogVisible = false
-
-      this.loadApprovalList()
-
     },
 
-    // 驳回
-    rejectBooking() {
-
-      const all =
-        JSON.parse(localStorage.getItem('booking_all')) || []
-
-      const index =
-        all.findIndex(i => i.id === this.currentRow.id)
-
-      if (index !== -1) {
-
-        all[index].status = STATUS.REJECTED
-
+    // ================= 3. 真实驳回接口 =================
+    async rejectBooking() {
+      try {
+        await request({ 
+          url: `/approvals/${this.currentRow.id}/reject`, 
+          method: 'put' 
+        })
+        this.$message.success('已驳回该申请')
+        this.dialogVisible = false
+        this.loadApprovalList() // 刷新列表
+      } catch (error) {
+        this.$message.error('操作失败')
       }
-
-      localStorage.setItem(
-        'booking_all',
-        JSON.stringify(all)
-      )
-
-      this.$message.success('已驳回')
-
-      this.dialogVisible = false
-
-      this.loadApprovalList()
-
     },
 
-    // 时间格式化
+    // ================= 时间格式化 =================
     formatTime(time) {
-
       if (!time) return ''
-
       const date = new Date(time)
-
       const y = date.getFullYear()
-
-      const m =
-        String(date.getMonth() + 1).padStart(2, '0')
-
-      const d =
-        String(date.getDate()).padStart(2, '0')
-
-      const h =
-        String(date.getHours()).padStart(2, '0')
-
-      const mm =
-        String(date.getMinutes()).padStart(2, '0')
-
+      const m = String(date.getMonth() + 1).padStart(2, '0')
+      const d = String(date.getDate()).padStart(2, '0')
+      const h = String(date.getHours()).padStart(2, '0')
+      const mm = String(date.getMinutes()).padStart(2, '0')
       return `${y}-${m}-${d} ${h}:${mm}`
-
     }
-
   }
-
 }
 </script>
 
