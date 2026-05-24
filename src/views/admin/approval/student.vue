@@ -166,7 +166,7 @@ export default {
         },
         {
           label: '申请发起时间',
-          value: this.format(this.currentBooking.created_at)
+          value: this.format(this.currentBooking.created_at,true)
         }
       ]
     }
@@ -255,16 +255,35 @@ export default {
       }
     },
 
-    format(t) {
-      if (!t) return ''
-      const date = new Date(t)
-      const y = date.getFullYear()
-      const m = String(date.getMonth() + 1).padStart(2, '0')
-      const d = String(date.getDate()).padStart(2, '0')
-      const h = String(date.getHours()).padStart(2, '0')
-      const mm = String(date.getMinutes()).padStart(2, '0')
-      return `${y}-${m}-${d} ${h}:${mm}`
-    }
+    // format(t) {
+    //   if (!t) return ''
+    //   const date = new Date(t)
+    //   const y = date.getFullYear()
+    //   const m = String(date.getMonth() + 1).padStart(2, '0')
+    //   const d = String(date.getDate()).padStart(2, '0')
+    //   const h = String(date.getHours()).padStart(2, '0')
+    //   const mm = String(date.getMinutes()).padStart(2, '0')
+    //   return `${y}-${m}-${d} ${h}:${mm}`
+    // }
+    format(t, isUtc = false) {
+  if (!t) return ''
+
+  let value = t
+
+  if (isUtc && typeof value === 'string' && !value.endsWith('Z')) {
+    value = value + 'Z'
+  }
+
+  const date = new Date(value)
+
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  const h = String(date.getHours()).padStart(2, '0')
+  const mm = String(date.getMinutes()).padStart(2, '0')
+
+  return `${y}-${m}-${d} ${h}:${mm}`
+}
   }
 }
 </script>

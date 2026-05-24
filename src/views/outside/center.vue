@@ -50,7 +50,7 @@
               返回登录页面
             </el-button>
 
-            <el-button type="primary" @click="editDialog = true">
+            <el-button type="primary" @click="openEdit">
               修改个人信息
             </el-button>
 
@@ -116,19 +116,21 @@
 </template>
 
 <script>
+import { getMyProfile, updateMyProfile } from '@/api/user'
+
 export default {
   name: 'ExternalCenter',
 
   data() {
     return {
-
       editDialog: false,
 
       form: {
-        id: 'W2024001',
-        name: '李四',
-        gender: '男',
-        company: '某某研究院',
+        id: '',
+        name: '',
+        gender: '',
+        company: '',
+        phone: '',
         extra: '无'
       },
 
@@ -137,30 +139,55 @@ export default {
   },
 
   mounted() {
-    this.editForm = { ...this.form }
+    this.loadProfile()
   },
 
   methods: {
+    loadProfile() {
+      getMyProfile().then(res => {
+        const data = res.data.data
 
-    // 返回登录
+        this.form = {
+          id: data.username || '',
+          name: data.name || '',
+          gender: data.gender || '',
+          company: data.company || '',
+          phone: data.phone || '',
+          extra: '无'
+        }
+
+        this.editForm = { ...this.form }
+      }).catch(err => {
+        console.log('校外人员个人信息加载失败：', err)
+        this.$message.error('个人信息加载失败')
+      })
+    },
+
     goLogin() {
       this.$router.push('/')
     },
 
-    // 打开编辑时复制数据
     openEdit() {
       this.editForm = { ...this.form }
       this.editDialog = true
     },
 
-    // 保存
     save() {
-
-      this.form = { ...this.editForm }
-
-      this.$message.success('信息保存成功')
-
-      this.editDialog = false
+      updateMyProfile({
+        name: this.editForm.name,
+        gender: this.editForm.gender,
+        company: this.editForm.company,
+        phone: this.editForm.phone
+      }).then(() => {
+        this.$message.success('信息保存成功')
+        this.editDialog = false
+        this.loadProfile()
+      }).catch(err => {
+        console.log('校外人员个人信息保存失败：', err)
+        this.$message.error(
+          err.response?.data?.detail || '信息保存失败'
+        )
+      })
     }
   }
 }

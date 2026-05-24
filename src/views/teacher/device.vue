@@ -15,6 +15,7 @@
           placeholder="请输入设备名称"
           prefix-icon="el-icon-search"
           class="search-input"
+          @input="loadDeviceList"
         />
 
         <el-date-picker
@@ -152,6 +153,7 @@
 </template>
 
 <script>
+import { getClientDevices, createBooking } from '@/api/client'
 export default {
 
   name: 'TeacherDevice',
@@ -162,6 +164,7 @@ export default {
       searchKeyword: '',
       bookingTime: '',
       dialogVisible: false,
+      currentDevice: null,
 
       bookingForm: {
         deviceName: '',
@@ -187,15 +190,44 @@ export default {
 
   methods: {
     // 加载全局设备
-    loadDeviceList() {
+    // loadDeviceList() {
 
-      const list =
-        JSON.parse(localStorage.getItem('device_list')) || []
+    //   const list =
+    //     JSON.parse(localStorage.getItem('device_list')) || []
 
-      this.deviceList = list
+    //   this.deviceList = list
 
-    },
+    // },
+//     loadDeviceList() {
+//   getClientDevices().then(res => {
+//     this.deviceList = res.data
+//   })
+// },
+formatDateTime(date) {
+  const d = new Date(date)
+
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  const h = String(d.getHours()).padStart(2, '0')
+  const min = String(d.getMinutes()).padStart(2, '0')
+  const s = String(d.getSeconds()).padStart(2, '0')
+
+  return `${y}-${m}-${day}T${h}:${min}:${s}`
+},
+loadDeviceList() {
+  getClientDevices({
+    keyword: this.searchKeyword
+  }).then(res => {
+    console.log('教师设备接口返回：', res)
+    this.deviceList = res.data.data || []
+  }).catch(err => {
+    console.log('教师设备接口错误：', err)
+    this.$message.error('设备列表加载失败')
+  })
+},
     openBookingDialog(row) {
+      this.currentDevice = row
       this.bookingForm = {
         deviceName: row.model,
         time: '',
@@ -204,69 +236,102 @@ export default {
       this.dialogVisible = true
     },
 
-    submitBooking() {
+//     submitBooking() {
 
-      if (!this.bookingForm.time) {
-        this.$message.error('请选择预约时间')
-        return
-      }
+//       if (!this.bookingForm.time) {
+//         this.$message.error('请选择预约时间')
+//         return
+//       }
 
-      if (!this.bookingForm.reason) {
-        this.$message.error('请输入预约用途')
-        return
-      }
+//       if (!this.bookingForm.reason) {
+//         this.$message.error('请输入预约用途')
+//         return
+//       }
 
-      // ✅统一全局 key（只用这一份数据）
-      const storageKey = 'booking_all'
+//       // ✅统一全局 key（只用这一份数据）
+//       const storageKey = 'booking_all'
 
-// 读取全局数据
-      const bookingList =
-        JSON.parse(localStorage.getItem(storageKey)) || []
+// // 读取全局数据
+//       const bookingList =
+//         JSON.parse(localStorage.getItem(storageKey)) || []
 
-      const newStart = new Date(this.bookingForm.time[0]).getTime()
-      const newEnd = new Date(this.bookingForm.time[1]).getTime()
+//       const newStart = new Date(this.bookingForm.time[0]).getTime()
+//       const newEnd = new Date(this.bookingForm.time[1]).getTime()
 
-// ✅全局冲突检测（所有人共享）
-      const conflict = bookingList.some(item => {
+// // ✅全局冲突检测（所有人共享）
+//       const conflict = bookingList.some(item => {
 
-        if (item.deviceName !== this.bookingForm.deviceName) return false
+//         if (item.deviceName !== this.bookingForm.deviceName) return false
 
-        const oldStart = new Date(item.startTime).getTime()
-        const oldEnd = new Date(item.endTime).getTime()
+//         const oldStart = new Date(item.startTime).getTime()
+//         const oldEnd = new Date(item.endTime).getTime()
 
-        return newStart < oldEnd && newEnd > oldStart
-      })
+//         return newStart < oldEnd && newEnd > oldStart
+//       })
 
-      if (conflict) {
-        this.$message.error('该设备该时间段已被预约（全局冲突）')
-        return
-      }
+//       if (conflict) {
+//         this.$message.error('该设备该时间段已被预约（全局冲突）')
+//         return
+//       }
 
-// ✅写入预约数据
-      const newBooking = {
-        id: Date.now(),
-        role: 'teacher',   // ⭐关键：身份区分
-        deviceName: this.bookingForm.deviceName,
-        startTime: this.bookingForm.time[0],
-        endTime: this.bookingForm.time[1],
-        reason: this.bookingForm.reason,
-        status: '待管理员审批',
-        currentStep: 'admin',
-        createTime: new Date().getTime()
-      }
+// // ✅写入预约数据
+//       const newBooking = {
+//         id: Date.now(),
+//         role: 'teacher',   // ⭐关键：身份区分
+//         deviceName: this.bookingForm.deviceName,
+//         startTime: this.bookingForm.time[0],
+//         endTime: this.bookingForm.time[1],
+//         reason: this.bookingForm.reason,
+//         status: '待管理员审批',
+//         currentStep: 'admin',
+//         createTime: new Date().getTime()
+//       }
 
-// 写入全局
-      bookingList.push(newBooking)
+// // 写入全局
+//       bookingList.push(newBooking)
 
-// ⭐统一存储（关键）
-      localStorage.setItem(storageKey, JSON.stringify(bookingList))
+// // ⭐统一存储（关键）
+//       localStorage.setItem(storageKey, JSON.stringify(bookingList))
 
-      this.$message.success('预约成功')
+//       this.$message.success('预约成功')
 
-      this.dialogVisible = false
+//       this.dialogVisible = false
 
-      this.$router.push('/teacher/booking')
-    }
+//       this.$router.push('/teacher/booking')
+//     }
+submitBooking() {
+  if (!this.bookingForm.time) {
+    this.$message.error('请选择预约时间')
+    return
+  }
+
+  if (!this.bookingForm.reason) {
+    this.$message.error('请输入预约用途')
+    return
+  }
+
+  if (!this.currentDevice) {
+    this.$message.error('请选择预约设备')
+    return
+  }
+
+  createBooking({
+    device_id: this.currentDevice.id,
+    device_name: this.currentDevice.model,
+    start_time: this.formatDateTime(this.bookingForm.time[0]),
+end_time: this.formatDateTime(this.bookingForm.time[1]),
+    reason: this.bookingForm.reason
+  }).then(() => {
+    this.$message.success('预约申请提交成功')
+    this.dialogVisible = false
+    this.$router.push('/teacher/booking')
+  }).catch(err => {
+    console.log('教师预约提交失败：', err)
+    this.$message.error(
+      err.response?.data?.detail || '预约提交失败'
+    )
+  })
+}
   }
 }
 </script>

@@ -54,7 +54,7 @@
         </el-row>
         <el-row>
           <el-col :span="12"><el-form-item label="预约设备:"><b>{{ currentBooking.device_name }}</b></el-form-item></el-col>
-          <el-col :span="12"><el-form-item label="申请时间:">{{ format(currentBooking.created_at) }}</el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="申请时间:">{{ format(currentBooking.created_at, true) }}</el-form-item></el-col>
         </el-row>
         <el-form-item label="预约时段:">
           <el-tag size="medium">{{ format(currentBooking.start_time) }}</el-tag>
@@ -137,16 +137,35 @@ export default {
         this.$message.error('操作失败')
       }
     },
-    format(t) {
-      if (!t) return ''
-      const date = new Date(t)
-      const y = date.getFullYear()
-      const m = String(date.getMonth() + 1).padStart(2, '0')
-      const d = String(date.getDate()).padStart(2, '0')
-      const h = String(date.getHours()).padStart(2, '0')
-      const mm = String(date.getMinutes()).padStart(2, '0')
-      return `${y}-${m}-${d} ${h}:${mm}`
-    }
+    // format(t) {
+    //   if (!t) return ''
+    //   const date = new Date(t)
+    //   const y = date.getFullYear()
+    //   const m = String(date.getMonth() + 1).padStart(2, '0')
+    //   const d = String(date.getDate()).padStart(2, '0')
+    //   const h = String(date.getHours()).padStart(2, '0')
+    //   const mm = String(date.getMinutes()).padStart(2, '0')
+    //   return `${y}-${m}-${d} ${h}:${mm}`
+    // }
+    format(t, isUtc = false) {
+  if (!t) return ''
+
+  let value = t
+
+  if (isUtc && typeof value === 'string' && !value.endsWith('Z')) {
+    value = value + 'Z'
+  }
+
+  const date = new Date(value)
+
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  const h = String(date.getHours()).padStart(2, '0')
+  const mm = String(date.getMinutes()).padStart(2, '0')
+
+  return `${y}-${m}-${d} ${h}:${mm}`
+}
   }
 }
 </script>
