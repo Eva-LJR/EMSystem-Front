@@ -155,7 +155,7 @@
 
         <el-table-column
           prop="count"
-          label="使用次数（千次）"
+          label="使用次数（次）"
           align="center"
         />
 

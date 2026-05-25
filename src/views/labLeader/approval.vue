@@ -78,7 +78,7 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="申请时间:">
-              {{ formatTime(currentRow.createTime) }}
+              {{ formatTime(currentRow.createTime, true) }}
             </el-form-item>
           </el-col>
         </el-row>
@@ -185,16 +185,35 @@ export default {
     },
 
     // ================= 时间格式化 =================
-    formatTime(time) {
-      if (!time) return ''
-      const date = new Date(time)
-      const y = date.getFullYear()
-      const m = String(date.getMonth() + 1).padStart(2, '0')
-      const d = String(date.getDate()).padStart(2, '0')
-      const h = String(date.getHours()).padStart(2, '0')
-      const mm = String(date.getMinutes()).padStart(2, '0')
-      return `${y}-${m}-${d} ${h}:${mm}`
-    }
+    // formatTime(time) {
+    //   if (!time) return ''
+    //   const date = new Date(time)
+    //   const y = date.getFullYear()
+    //   const m = String(date.getMonth() + 1).padStart(2, '0')
+    //   const d = String(date.getDate()).padStart(2, '0')
+    //   const h = String(date.getHours()).padStart(2, '0')
+    //   const mm = String(date.getMinutes()).padStart(2, '0')
+    //   return `${y}-${m}-${d} ${h}:${mm}`
+    // }
+    formatTime(time, isUtc = false) {
+  if (!time) return ''
+
+  let value = time
+
+  if (isUtc && typeof value === 'string' && !value.endsWith('Z')) {
+    value = value + 'Z'
+  }
+
+  const date = new Date(value)
+
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  const h = String(date.getHours()).padStart(2, '0')
+  const mm = String(date.getMinutes()).padStart(2, '0')
+
+  return `${y}-${m}-${d} ${h}:${mm}`
+}
   }
 }
 </script>

@@ -54,3 +54,25 @@ export function logout() {
     method: 'post'
   })
 }
+
+export function getMyProfile() {
+  return request({
+    url: '/users/me',
+    method: 'get'
+  })
+}
+
+export function updateMyProfile(data) {
+  return request({
+    url: '/users/me',
+    method: 'put',
+    data
+  })
+}
+
+export function getMyStudents() {
+  return request({
+    url: '/users/my-students',
+    method: 'get'
+  })
+}

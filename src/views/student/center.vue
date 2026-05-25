@@ -97,53 +97,77 @@
 </template>
 
 <script>
+import { getMyProfile, updateMyProfile } from '@/api/user'
+
 export default {
   name: 'StudentCenter',
 
   data() {
     return {
-
-      // 是否编辑状态
       isEdit: false,
 
-      // 学生信息
       studentForm: {
-        studentId: '2023001001',
-        name: '张三',
-        gender: '男',
-        major: '计算机科学与技术',
-        teacher: '李教授',
-        college: '计算机学院'
+        studentId: '',
+        name: '',
+        gender: '',
+        major: '',
+        teacher: '',
+        college: '',
+        phone: ''
       }
-
     }
   },
 
-  methods: {
+  mounted() {
+    this.loadProfile()
+  },
 
-    // 返回登录页
+  methods: {
+    loadProfile() {
+      getMyProfile().then(res => {
+        const data = res.data.data
+
+        this.studentForm = {
+          studentId: data.username || '',
+          name: data.name || '',
+          gender: data.gender || '',
+          major: data.major || '',
+          teacher: data.teacherName || '',
+          college: data.college || '',
+          phone: data.phone || ''
+        }
+      }).catch(err => {
+        console.log('学生个人信息加载失败：', err)
+        this.$message.error('个人信息加载失败')
+      })
+    },
+
     goLogin() {
       this.$router.push('/')
     },
 
-    // 编辑 / 保存
     handleEdit() {
-
-      // 保存状态
       if (this.isEdit) {
-
-        // 这里以后接后端接口
-        console.log('保存信息：', this.studentForm)
-
-        this.$message({
-          message: '信息保存成功',
-          type: 'success'
+        updateMyProfile({
+          name: this.studentForm.name,
+          gender: this.studentForm.gender,
+          major: this.studentForm.major,
+          teacherName: this.studentForm.teacher,
+          college: this.studentForm.college,
+          phone: this.studentForm.phone
+        }).then(() => {
+          this.$message.success('信息保存成功')
+          this.loadProfile()
+        }).catch(err => {
+          console.log('学生个人信息保存失败：', err)
+          this.$message.error(
+            err.response?.data?.detail || '信息保存失败'
+          )
         })
       }
 
       this.isEdit = !this.isEdit
     }
-
   }
 }
 </script>
