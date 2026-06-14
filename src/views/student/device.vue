@@ -18,6 +18,7 @@
           placeholder="请输入设备名称"
           prefix-icon="el-icon-search"
           class="search-input"
+          @input="loadDeviceList"
         />
 
         <!-- 时间选择 -->
@@ -171,6 +172,7 @@
 </template>
 
 <script>
+import { getClientDevices, createBooking } from '@/api/client'
 export default {
 
   name: 'StudentDevice',
@@ -180,6 +182,7 @@ export default {
       searchKeyword: '',
       bookingTime: '',
       dialogVisible: false,
+      currentDevice: null,
 
       bookingForm: {
         deviceName: '',
@@ -205,15 +208,47 @@ export default {
 
   methods: {
     // 加载全局设备
-    loadDeviceList() {
+    // loadDeviceList() {
 
-      const list =
-        JSON.parse(localStorage.getItem('device_list')) || []
+    //   const list =
+    //     JSON.parse(localStorage.getItem('device_list')) || []
 
-      this.deviceList = list
+    //   this.deviceList = list
 
-    },
+    // },
+    // loadDeviceList() {
+    //   getClientDevices({
+    //     keyword: this.searchKeyword
+    //     }).then(res => {
+    //       this.deviceList = res.data
+    //       })
+    // },
+    formatDateTime(date) {
+  const d = new Date(date)
+
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  const h = String(d.getHours()).padStart(2, '0')
+  const min = String(d.getMinutes()).padStart(2, '0')
+  const s = String(d.getSeconds()).padStart(2, '0')
+
+  return `${y}-${m}-${day}T${h}:${min}:${s}`
+},
+loadDeviceList() {
+  getClientDevices({
+    keyword: this.searchKeyword
+  }).then(res => {
+    console.log('设备接口返回：', res)
+
+    this.deviceList = res.data.data
+  }).catch(err => {
+    console.log('设备接口错误：', err)
+    this.$message.error('设备列表加载失败')
+  })
+},
     openBookingDialog(row) {
+      this.currentDevice = row
       this.bookingForm = {
         deviceName: row.model,
         time: '',
@@ -223,65 +258,32 @@ export default {
     },
 
     submitBooking() {
+  if (!this.bookingForm.time) {
+    this.$message.error('请选择预约时间')
+    return
+  }
 
-      if (!this.bookingForm.time) {
-        this.$message.error('请选择预约时间')
-        return
-      }
+  if (!this.bookingForm.reason) {
+    this.$message.error('请输入预约用途')
+    return
+  }
 
-      if (!this.bookingForm.reason) {
-        this.$message.error('请输入预约用途')
-        return
-      }
-
-      // ✅全局预约数据
-      const bookingList =
-        JSON.parse(localStorage.getItem('booking_all')) || []
-
-      const newStart = new Date(this.bookingForm.time[0]).getTime()
-      const newEnd = new Date(this.bookingForm.time[1]).getTime()
-
-// ✅全局冲突检测（关键）
-      const conflict = bookingList.some(item => {
-
-        if (item.deviceName !== this.bookingForm.deviceName) return false
-
-        const oldStart = new Date(item.startTime).getTime()
-        const oldEnd = new Date(item.endTime).getTime()
-
-        return newStart < oldEnd && newEnd > oldStart
-      })
-
-      if (conflict) {
-        this.$message.error('该设备该时间段已被预约（冲突）')
-        return
-      }
-
-      const newBooking = {
-        id: Date.now(),
-        deviceName: this.bookingForm.deviceName,
-        startTime: this.bookingForm.time[0],
-        endTime: this.bookingForm.time[1],
-        reason: this.bookingForm.reason,
-
-        // ⭐⭐⭐ 核心：角色隔离
-        role: 'student',
-
-        status: '待教师审批',
-        currentStep: 'teacher',
-        createTime: new Date().getTime()
-      }
-
-      bookingList.push(newBooking)
-
-      localStorage.setItem('booking_all', JSON.stringify(bookingList))
-
-      this.$message.success('预约申请提交成功')
-
-      this.dialogVisible = false
-
-      this.$router.push('/student/booking')
-    }
+  createBooking({
+    device_id: this.currentDevice.id,
+    device_name: this.currentDevice.model,
+    start_time: this.formatDateTime(this.bookingForm.time[0]),
+    end_time: this.formatDateTime(this.bookingForm.time[1]),
+    reason: this.bookingForm.reason
+  }).then(() => {
+    this.$message.success('预约申请提交成功')
+    this.dialogVisible = false
+    this.$router.push('/student/booking')
+  }).catch(err => {
+    this.$message.error(
+      err.response?.data?.detail || '预约提交失败'
+    )
+  })
+}
 
   }
 

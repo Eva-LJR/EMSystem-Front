@@ -1,17 +1,12 @@
 <template>
   <div class="page">
 
-
-
     <div class="layout">
 
-
-
-      <!-- ===== 主内容 ===== -->
       <div class="content">
 
         <!-- 按钮 -->
-        <el-button type="primary" @click="studentDialog = true">
+        <el-button type="primary" @click="openStudentDialog">
           查看指导学生
         </el-button>
 
@@ -20,7 +15,15 @@
 
           <el-table :data="bookingList" border>
 
-            <el-table-column prop="studentName" label="预约学生信息" />
+            <el-table-column label="预约学生信息">
+              <template slot-scope="scope">
+                <div>{{ scope.row.applicantName }}</div>
+                <div style="color:#999;font-size:12px;">
+                  {{ scope.row.applicantId }}
+                </div>
+              </template>
+            </el-table-column>
+
             <el-table-column prop="deviceName" label="预约设备" />
 
             <el-table-column label="预约时间">
@@ -34,11 +37,9 @@
             </el-table-column>
 
             <el-table-column label="操作">
-
               <template slot-scope="scope">
 
-                <!-- 待审批 -->
-                <div v-if="scope.row.status === '待教师审批'">
+                <div v-if="scope.row.status === '待指导教师审批'">
 
                   <el-button
                     type="success"
@@ -58,17 +59,15 @@
 
                 </div>
 
-                <!-- 已审批 -->
                 <div v-else>
                   <el-tag
-                    :type="scope.row.status === '已通过' ? 'success' : 'danger'"
+                    :type="scope.row.status === '已通过' || scope.row.status === '负责人已通过' ? 'success' : 'info'"
                   >
                     {{ scope.row.status }}
                   </el-tag>
                 </div>
 
               </template>
-
             </el-table-column>
 
           </el-table>
@@ -78,19 +77,16 @@
       </div>
     </div>
 
-    <!-- ============================= -->
-    <!-- ===== 界面2：学生管理弹窗 ===== -->
-    <!-- ============================= -->
-
+    <!-- 指导学生管理弹窗 -->
     <el-dialog
       title="指导学生管理"
       :visible.sync="studentDialog"
-      width="750px"
+      width="850px"
     >
 
       <div style="display:flex;justify-content:space-between;margin-bottom:10px">
 
-        <el-button type="primary" @click="addDialog = true">
+        <el-button type="primary" @click="openAddDialog">
           添加学生
         </el-button>
 
@@ -102,17 +98,19 @@
 
       <el-table :data="studentList" border>
 
-        <el-table-column prop="id" label="学号" />
+        <el-table-column prop="username" label="学号" />
         <el-table-column prop="name" label="姓名" />
+        <el-table-column prop="gender" label="性别" />
         <el-table-column prop="major" label="专业" />
         <el-table-column prop="college" label="学院" />
+        <el-table-column prop="phone" label="电话" />
 
         <el-table-column label="操作">
           <template slot-scope="scope">
             <el-button
               type="danger"
               size="mini"
-              @click="removeStudent(scope.row.id)"
+              @click="removeStudent(scope.row.username)"
             >
               解除绑定
             </el-button>
@@ -123,43 +121,36 @@
 
     </el-dialog>
 
-    <!-- ============================= -->
-    <!-- ===== 界面3：添加学生弹窗 ===== -->
-    <!-- ============================= -->
-
+    <!-- 添加学生弹窗 -->
     <el-dialog
       title="添加学生"
       :visible.sync="addDialog"
       width="500px"
     >
 
-      <el-form :model="form" label-width="80px">
+      <el-form :model="form" label-width="100px">
 
-        <el-form-item label="学号">
-          <el-input v-model="form.id" />
+        <el-form-item label="学生学号">
+          <el-input
+            v-model="form.username"
+            placeholder="请输入已存在的学生账号/学号"
+          />
         </el-form-item>
 
-        <el-form-item label="姓名">
-          <el-input v-model="form.name" />
-        </el-form-item>
-
-        <el-form-item label="性别">
-          <el-input v-model="form.gender" />
-        </el-form-item>
-
-        <el-form-item label="专业">
-          <el-input v-model="form.major" />
-        </el-form-item>
-
-        <el-form-item label="学院">
-          <el-input v-model="form.college" />
-        </el-form-item>
+        <el-alert
+          title="说明：这里绑定的是系统中已经存在的学生账号。绑定后，教师查看指导学生时会实时读取该学生的最新个人信息。"
+          type="info"
+          show-icon
+          :closable="false"
+        />
 
       </el-form>
 
       <div slot="footer">
 
-        <el-button @click="addDialog=false">取消</el-button>
+        <el-button @click="addDialog=false">
+          取消
+        </el-button>
 
         <el-button type="primary" @click="addStudent">
           添加学生
@@ -173,11 +164,23 @@
 </template>
 
 <script>
+import {
+  getStudentApprovals,
+  approveStudentBooking,
+  rejectStudentBooking
+} from '@/api/client'
+
+import {
+  getMyStudents,
+  bindStudent,
+  unbindStudent
+} from '@/api/user'
+
 export default {
+  name: 'TeacherApproval',
 
   data() {
     return {
-
       bookingList: [],
       studentList: [],
 
@@ -185,137 +188,124 @@ export default {
       addDialog: false,
 
       form: {
-        id: '',
-        name: '',
-        gender: '',
-        major: '',
-        college: ''
+        username: ''
       }
     }
   },
 
   mounted() {
     this.loadData()
+    this.loadStudentList()
   },
 
   methods: {
-
-    /* ======================
-       数据加载
-    ====================== */
     loadData() {
-
-      const all =
-        JSON.parse(localStorage.getItem('booking_all')) || []
-
-      // 只显示：
-      // 学生预约
-      // 且当前阶段是教师审批
-
-      this.bookingList = all.filter(item => {
-
-        return (
-          item.role === 'teacher' &&
-          item.currentStep === 'admin'
+      getStudentApprovals().then(res => {
+        console.log('教师审批接口返回：', res)
+        this.bookingList = res.data.data || []
+      }).catch(err => {
+        console.log('教师审批接口错误：', err)
+        this.$message.error(
+          err.response?.data?.detail || '审批列表加载失败'
         )
       })
-
     },
 
-    /* ======================
-       审批逻辑
-    ====================== */
+    loadStudentList() {
+      getMyStudents().then(res => {
+        console.log('我的指导学生返回：', res)
+        this.studentList = res.data.data || []
+      }).catch(err => {
+        console.log('指导学生列表加载失败：', err)
+        this.$message.error(
+          err.response?.data?.detail || '指导学生列表加载失败'
+        )
+      })
+    },
+
+    openStudentDialog() {
+      this.studentDialog = true
+      this.loadStudentList()
+    },
+
+    openAddDialog() {
+      this.form = {
+        username: ''
+      }
+      this.addDialog = true
+    },
+
     approve(id) {
-
-      const list =
-        JSON.parse(localStorage.getItem('booking_all')) || []
-
-      const index =
-        list.findIndex(i => i.id === id)
-
-      if (index !== -1) {
-
-        list[index].status = '待管理员审批'
-
-        list[index].currentStep = 'admin'
-      }
-
-      localStorage.setItem(
-        'booking_all',
-        JSON.stringify(list)
-      )
-
-      this.loadData()
-
-      this.$message.success('已提交管理员审批')
+      approveStudentBooking(id).then(() => {
+        this.$message.success('已提交管理员审批')
+        this.loadData()
+      }).catch(err => {
+        this.$message.error(
+          err.response?.data?.detail || '审批失败'
+        )
+      })
     },
+
     reject(id) {
-
-      const list =
-        JSON.parse(localStorage.getItem('booking_all')) || []
-
-      const index =
-        list.findIndex(i => i.id === id)
-
-      if (index !== -1) {
-
-        list[index].status = '教师已驳回'
-
-        list[index].currentStep = 'end'
-      }
-
-      localStorage.setItem(
-        'booking_all',
-        JSON.stringify(list)
-      )
-
-      this.loadData()
-
-      this.$message.error('已驳回申请')
+      rejectStudentBooking(id).then(() => {
+        this.$message.error('已驳回申请')
+        this.loadData()
+      }).catch(err => {
+        this.$message.error(
+          err.response?.data?.detail || '驳回失败'
+        )
+      })
     },
 
-    /* ======================
-       学生管理
-    ====================== */
     addStudent() {
-
-      if (!this.form.id || !this.form.name) {
-        this.$message.error('请填写完整信息')
+      if (!this.form.username) {
+        this.$message.error('请输入学生学号')
         return
       }
 
-      const list =
-        JSON.parse(localStorage.getItem('teacher_students')) || []
-
-      list.push({ ...this.form })
-
-      localStorage.setItem('teacher_students', JSON.stringify(list))
-
-      this.studentList = list
-      this.addDialog = false
-
-      this.$message.success('添加成功')
+      bindStudent(this.form.username).then(() => {
+        this.$message.success('学生绑定成功')
+        this.addDialog = false
+        this.loadStudentList()
+      }).catch(err => {
+        this.$message.error(
+          err.response?.data?.detail || '学生绑定失败'
+        )
+      })
     },
 
-    removeStudent(id) {
-
-      const list =
-        this.studentList.filter(i => i.id !== id)
-
-      localStorage.setItem('teacher_students', JSON.stringify(list))
-
-      this.studentList = list
-
-      this.$message.success('已解除绑定')
+    removeStudent(username) {
+      this.$confirm('确定要解除该学生的指导关系吗？', '提示', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }).then(() => {
+        unbindStudent(username).then(() => {
+          this.$message.success('已解除绑定')
+          this.loadStudentList()
+        }).catch(err => {
+          this.$message.error(
+            err.response?.data?.detail || '解除绑定失败'
+          )
+        })
+      }).catch(() => {
+        this.$message.info('已取消操作')
+      })
     },
 
-    /* ======================
-       工具函数
-    ====================== */
     format(t) {
-      return new Date(t).toLocaleString()
-    }
+      if (!t) return ''
 
+      const date = new Date(t)
+
+      const y = date.getFullYear()
+      const m = String(date.getMonth() + 1).padStart(2, '0')
+      const d = String(date.getDate()).padStart(2, '0')
+      const h = String(date.getHours()).padStart(2, '0')
+      const mm = String(date.getMinutes()).padStart(2, '0')
+
+      return `${y}-${m}-${d} ${h}:${mm}`
+    }
   }
 }
 </script>
@@ -327,33 +317,9 @@ export default {
   height: 100vh;
 }
 
-.top-bar {
-  background: #409eff;
-  color: white;
-  padding: 12px;
-  font-size: 18px;
-}
-
 .layout {
   display: flex;
   flex: 1;
-}
-
-.sidebar {
-  width: 200px;
-  background: #f5f5f5;
-  padding: 10px;
-}
-
-.menu {
-  padding: 10px;
-  cursor: pointer;
-}
-
-.active {
-  background: #409eff;
-  color: white;
-  border-radius: 5px;
 }
 
 .content {
