@@ -1,6 +1,6 @@
 module.exports = {
 
-  title: '培训管理系统',
+  title: '江南大学实验室设备管理系统',
 
   /**
    * @type {boolean} true | false
