@@ -32,13 +32,15 @@ export function login(data) {
     data: data // 直接传入 JSON 对象
   })
 }
-// export function login(data) {
-//   return request({
-//     url: '/vue-admin-template/user/login',
-//     method: 'post',
-//     data
-//   })
-// }
+
+export function register(data) {
+  return request({
+    url: '/vue-admin-template/user/register',
+    method: 'post',
+    data
+  })
+}
+
 
 export function getInfo(token) {
   return request({

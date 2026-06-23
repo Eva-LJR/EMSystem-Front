@@ -8,7 +8,8 @@ import getPageTitle from '@/utils/get-page-title'
 
 NProgress.configure({ showSpinner: false }) // NProgress Configuration
 
-const whiteList = ['/login'] // no redirect whitelist
+//const whiteList = ['/login'] // no redirect whitelist
+const whiteList = ['/', '/visitor-login', '/admin-login', '/register']
 
 router.beforeEach(async(to, from, next) => {
   NProgress.start()
@@ -40,6 +41,25 @@ router.beforeEach(async(to, from, next) => {
   }
 })
 
-router.afterEach(() => {
-  NProgress.done()
+router.beforeEach(async(to, from, next) => {
+  NProgress.start()
+  document.title = getPageTitle(to.meta.title)
+
+  const hasToken = getToken()
+
+  if (hasToken) {
+    if (to.path === '/' || to.path === '/visitor-login' || to.path === '/admin-login' || to.path === '/register') {
+      next()
+      NProgress.done()
+    } else {
+      next()
+    }
+  } else {
+    if (whiteList.indexOf(to.path) !== -1) {
+      next()
+    } else {
+      next('/')
+      NProgress.done()
+    }
+  }
 })

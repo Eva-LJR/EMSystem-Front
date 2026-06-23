@@ -37,6 +37,15 @@
       >
         登录
       </el-button>
+      
+      <!-- 注册按钮 -->
+      <el-button
+        type="text"
+        class="register-link"
+        @click="goRegister"
+      >
+        没有账号？立即注册
+      </el-button>
 
     </div>
 
@@ -88,7 +97,10 @@ export default {
       } catch (error) {
         this.$message.error('请求失败')
       }
-    }
+    },
+    goRegister() {
+      this.$router.push('/register')
+      }
   }
 }
 </script>
@@ -109,6 +121,11 @@ export default {
   border-radius: 12px;
   box-shadow: 0 8px 24px rgba(0,0,0,0.08);
   text-align: center;
+}
+
+.register-link {
+  width: 100%;
+  margin-top: 10px;
 }
 
 .title {

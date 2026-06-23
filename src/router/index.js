@@ -16,6 +16,14 @@ export const constantRoutes = [
   },
 
   {
+    path: '/register',
+    component: () => import('@/views/login/Register'),
+    meta: {
+      title: '用户注册'
+    }
+  },
+
+  {
     path: '/visitor-login',
     component: () => import('@/views/login/VisitorLogin')
   },
