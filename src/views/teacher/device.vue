@@ -15,7 +15,7 @@
           placeholder="请输入设备名称"
           prefix-icon="el-icon-search"
           class="search-input"
-          @input="loadDeviceList"
+          @input="handleSearch"
         />
 
         <el-date-picker
@@ -33,7 +33,12 @@
 
     <el-card shadow="never" class="table-card">
 
-      <el-table :data="filterDeviceList" border style="width: 100%">
+      <el-table
+  v-loading="loading"
+  :data="deviceList"
+  border
+  style="width: 100%"
+>
 
         <el-table-column prop="model" label="设备名" align="center" />
 
@@ -103,6 +108,18 @@
 
       </el-table>
 
+      <el-pagination
+  class="pagination"
+  background
+  layout="total, sizes, prev, pager, next, jumper"
+  :total="total"
+  :current-page="page"
+  :page-size="pageSize"
+  :page-sizes="[5, 10, 20, 50]"
+  @current-change="handlePageChange"
+  @size-change="handleSizeChange"
+/>
+
     </el-card>
 
     <!-- 弹窗 -->
@@ -165,6 +182,11 @@ export default {
       bookingTime: '',
       dialogVisible: false,
       currentDevice: null,
+      loading: false,
+
+      page: 1,
+      pageSize: 10,
+      total: 0,
 
       bookingForm: {
         deviceName: '',
@@ -181,11 +203,11 @@ export default {
 
   },
   computed: {
-    filterDeviceList() {
-      return this.deviceList.filter(i =>
-        i.model.includes(this.searchKeyword)
-      )
-    }
+    // filterDeviceList() {
+    //   return this.deviceList.filter(i =>
+    //     i.model.includes(this.searchKeyword)
+    //   )
+    // }
   },
 
   methods: {
@@ -216,15 +238,47 @@ formatDateTime(date) {
   return `${y}-${m}-${day}T${h}:${min}:${s}`
 },
 loadDeviceList() {
+  this.loading = true
+
   getClientDevices({
-    keyword: this.searchKeyword
+    keyword: this.searchKeyword,
+    page: this.page,
+    pageSize: this.pageSize
   }).then(res => {
     console.log('教师设备接口返回：', res)
-    this.deviceList = res.data.data || []
+
+    const result = res.data && res.data.data !== undefined
+      ? res.data.data
+      : res.data
+
+    if (Array.isArray(result)) {
+      this.deviceList = result
+      this.total = result.length
+    } else {
+      this.deviceList = result.items || []
+      this.total = result.total || 0
+    }
   }).catch(err => {
     console.log('教师设备接口错误：', err)
     this.$message.error('设备列表加载失败')
+  }).finally(() => {
+    this.loading = false
   })
+},
+handleSearch() {
+  this.page = 1
+  this.loadDeviceList()
+},
+
+handlePageChange(page) {
+  this.page = page
+  this.loadDeviceList()
+},
+
+handleSizeChange(size) {
+  this.pageSize = size
+  this.page = 1
+  this.loadDeviceList()
 },
     openBookingDialog(row) {
       this.currentDevice = row
@@ -372,5 +426,10 @@ end_time: this.formatDateTime(this.bookingForm.time[1]),
 
 .table-card {
   margin-top: 20px;
+}
+
+.pagination {
+  margin-top: 20px;
+  text-align: right;
 }
 </style>
