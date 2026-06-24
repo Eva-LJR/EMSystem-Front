@@ -1,45 +1,35 @@
 import router from './router'
 import store from './store'
 import { Message } from 'element-ui'
-import NProgress from 'nprogress' // progress bar
-import 'nprogress/nprogress.css' // progress bar style
-import { getToken } from '@/utils/auth' // get token from cookie
+import NProgress from 'nprogress'
+import 'nprogress/nprogress.css'
+import { getToken, removeToken } from '@/utils/auth'
 import getPageTitle from '@/utils/get-page-title'
 
-NProgress.configure({ showSpinner: false }) // NProgress Configuration
+NProgress.configure({ showSpinner: false })
 
-//const whiteList = ['/login'] // no redirect whitelist
 const whiteList = ['/', '/visitor-login', '/admin-login', '/register']
 
-router.beforeEach(async(to, from, next) => {
-  NProgress.start()
-  document.title = getPageTitle(to.meta.title)
+const roleHomeMap = {
+  student: '/student/center',
+  teacher: '/teacher/center',
+  outside: '/outside/center',
+  admin: '/admin/device',
+  labLeader: '/labLeader/device'
+}
 
-  const hasToken = getToken()
+function getRequiredRole(path) {
+  if (path.startsWith('/student')) return 'student'
+  if (path.startsWith('/teacher')) return 'teacher'
+  if (path.startsWith('/outside')) return 'outside'
+  if (path.startsWith('/admin')) return 'admin'
+  if (path.startsWith('/labLeader')) return 'labLeader'
+  return null
+}
 
-  // if (hasToken) {
-  if (true) {
-    if (to.path === '/login') {
-      next({ path: '/' })
-      NProgress.done()
-    } else {
-      const hasGetUserInfo = store.getters.name
-      if (hasGetUserInfo) {
-        next()
-      } else {
-        next()
-      }
-    }
-  } else {
-    if (whiteList.indexOf(to.path) !== -1) {
-      next()
-    } else {
-      // next(`/login?redirect=${to.path}`)
-      next()
-      NProgress.done()
-    }
-  }
-})
+function getHomePath(role) {
+  return roleHomeMap[role] || '/'
+}
 
 router.beforeEach(async(to, from, next) => {
   NProgress.start()
@@ -47,19 +37,49 @@ router.beforeEach(async(to, from, next) => {
 
   const hasToken = getToken()
 
-  if (hasToken) {
-    if (to.path === '/' || to.path === '/visitor-login' || to.path === '/admin-login' || to.path === '/register') {
-      next()
-      NProgress.done()
-    } else {
-      next()
-    }
-  } else {
-    if (whiteList.indexOf(to.path) !== -1) {
+  if (!hasToken) {
+    if (whiteList.includes(to.path)) {
       next()
     } else {
       next('/')
-      NProgress.done()
     }
+    NProgress.done()
+    return
   }
+
+  try {
+    let role = store.getters.role
+
+    if (!role) {
+      const userInfo = await store.dispatch('user/getInfo')
+      role = userInfo.role || (userInfo.roles && userInfo.roles[0])
+    }
+
+    if (whiteList.includes(to.path)) {
+      next(getHomePath(role))
+      NProgress.done()
+      return
+    }
+
+    const requiredRole = getRequiredRole(to.path)
+
+    if (requiredRole && requiredRole !== role) {
+      Message.warning('当前账号无权访问该页面，已返回对应角色首页')
+      next(getHomePath(role))
+      NProgress.done()
+      return
+    }
+
+    next()
+  } catch (error) {
+    removeToken()
+    await store.dispatch('user/resetToken')
+    Message.error('登录状态已失效，请重新登录')
+    next('/')
+    NProgress.done()
+  }
+})
+
+router.afterEach(() => {
+  NProgress.done()
 })

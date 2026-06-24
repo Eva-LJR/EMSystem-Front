@@ -39,21 +39,18 @@
 
 <script>
 import request from '@/utils/request'
-import { setToken } from '@/utils/auth'
+import { setToken, removeToken } from '@/utils/auth'
 
 export default {
   data() {
     return {
-      username: '',   
-      password: '',   
-      role: 'admin' // 默认选中第一个“设备管理员”
+      username: '',
+      password: '',
+      role: 'admin'
     }
   },
   methods: {
     async handleLogin() {
-      console.log('正在登录，参数：', this.username, this.password, this.role)
-      
-      // 表单简单校验
       if (!this.username.trim() || !this.password.trim()) {
         this.$message.warning('请输入用户名和密码')
         return
@@ -65,45 +62,48 @@ export default {
           method: 'post',
           data: {
             username: this.username,
-            password: this.password,
-            role: this.role // 传给后端的角色（对齐为 admin 或 labLeader）
+            password: this.password
           }
         })
-        
-        console.log('完整响应:', res)               
-        console.log('响应数据:', res.data)          
-        console.log('code:', res.data?.code)        
 
-        // 统一处理可能存在的响应结构差异（部分拦截器会自动剥离 res.data）
         const responseData = res.data ? res.data : res
 
         if (responseData.code === 20000) {
-          console.log('登录成功，准备保存 Token 并跳转')
-          
-          // 1. 保存 Token
           const token = responseData.data.token
           setToken(token)
-          
-          // 2. 修复点 2：建立清晰的角色路由映射表，完美对应你的 index.js 配置
-          const routeMap = {
-            'admin': '/admin/device',          // 设备管理员主页
-            'labLeader': '/labLeader/device'   // 实验室负责人主页
+
+          const infoRes = await request({
+            url: '/vue-admin-template/user/info',
+            method: 'get'
+          })
+
+          const infoData = infoRes.data ? infoRes.data.data : infoRes.data
+          const realRole = infoData.role || (infoData.roles && infoData.roles[0])
+
+          if (realRole !== this.role) {
+            removeToken()
+            this.$message.error('账号身份与所选管理入口不一致，请选择正确身份登录')
+            return
           }
 
-          const targetPath = routeMap[this.role]
+          const routeMap = {
+            admin: '/admin/device',
+            labLeader: '/labLeader/device'
+          }
+
+          const targetPath = routeMap[realRole]
 
           if (targetPath) {
             this.$router.push(targetPath)
           } else {
-            this.$message.error('未找到对应角色的路由映射，请检查配置')
+            removeToken()
+            this.$message.error('该账号不是管理员或实验室负责人，不能从管理入口登录')
           }
-
         } else {
-          console.log('code 不是 20000，登录失败')
           this.$message.error('登录失败：' + (responseData.message || '未知错误'))
         }
       } catch (error) {
-        console.error('请求异常:', error)
+        removeToken()
         this.$message.error('请求失败：' + (error.response?.data?.detail || error.message))
       }
     }
