@@ -53,7 +53,7 @@
 </template>
 
 <script>
-import { setToken } from '@/utils/auth'
+import { setToken, removeToken } from '@/utils/auth'
 import request from '@/utils/request'
 
 export default {
@@ -62,45 +62,70 @@ export default {
     return {
       username: '',
       password: '',
-      role: ''  // student, teacher, outside
+      role: ''
     }
   },
   methods: {
     async handleLogin() {
+      if (!this.username.trim() || !this.password.trim()) {
+        this.$message.warning('请输入用户名和密码')
+        return
+      }
+
       if (!this.role) {
         this.$message.warning('请选择身份')
         return
       }
+
       try {
         const response = await request({
           url: '/vue-admin-template/user/login',
           method: 'post',
           data: {
             username: this.username,
-            password: this.password,
-            role: this.role
+            password: this.password
           }
         })
-        if (response.data.code === 20000) {
-          const token = response.data.data.token
+
+        const responseData = response.data ? response.data : response
+
+        if (responseData.code === 20000) {
+          const token = responseData.data.token
           setToken(token)
-          // 根据角色跳转
+
+          const infoRes = await request({
+            url: '/vue-admin-template/user/info',
+            method: 'get'
+          })
+
+          const infoData = infoRes.data ? infoRes.data.data : infoRes.data
+          const realRole = infoData.role || (infoData.roles && infoData.roles[0])
+
+          if (realRole !== this.role) {
+            removeToken()
+            this.$message.error('账号身份与所选登录入口不一致，请选择正确身份登录')
+            return
+          }
+
           const routeMap = {
             student: '/student/center',
             teacher: '/teacher/center',
             outside: '/outside/center'
           }
-          this.$router.push(routeMap[this.role])
+
+          this.$router.push(routeMap[realRole])
         } else {
           this.$message.error('登录失败')
         }
       } catch (error) {
-        this.$message.error('请求失败')
+        removeToken()
+        this.$message.error('请求失败：' + (error.response?.data?.detail || error.message))
       }
     },
+
     goRegister() {
       this.$router.push('/register')
-      }
+    }
   }
 }
 </script>
