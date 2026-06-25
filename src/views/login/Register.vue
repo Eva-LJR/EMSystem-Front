@@ -23,6 +23,7 @@
           v-if="form.role === 'student'"
           label="学号"
           prop="identity_no"
+          required
         >
           <el-input
             v-model="form.identity_no"
@@ -35,6 +36,7 @@
           v-if="form.role === 'teacher'"
           label="工号"
           prop="identity_no"
+          required
         >
           <el-input
             v-model="form.identity_no"
@@ -47,6 +49,7 @@
           v-if="form.role === 'outside'"
           label="手机号"
           prop="phone"
+          required
         >
           <el-input
             v-model="form.phone"
