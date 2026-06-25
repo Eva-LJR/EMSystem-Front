@@ -8,6 +8,7 @@
         prefix-icon="el-icon-search"
         class="search-input"
         clearable
+        @input="handleSearch"
       />
 
       <el-button
@@ -20,7 +21,12 @@
     </div>
 
     <el-card class="table-card" shadow="never">
-      <el-table :data="filterDeviceList" border style="width: 100%">
+      <el-table
+  v-loading="loading"
+  :data="deviceList"
+  border
+  style="width: 100%"
+>
         <el-table-column prop="id" label="设备编号" width="100" align="center" />
         <el-table-column prop="model" label="设备型号" align="center" />
         <el-table-column prop="manufacturer" label="生产厂商" align="center" />
@@ -54,6 +60,18 @@
           </template>
         </el-table-column>
       </el-table>
+
+      <el-pagination
+  class="pagination"
+  background
+  layout="total, sizes, prev, pager, next, jumper"
+  :total="total"
+  :current-page="page"
+  :page-size="pageSize"
+  :page-sizes="[5, 10, 20, 50]"
+  @current-change="handlePageChange"
+  @size-change="handleSizeChange"
+/>
 
       <div class="bottom-btns">
         <el-button class="back-btn" @click="goLogin">
@@ -138,6 +156,11 @@ export default {
       searchKeyword: '',
       dialogVisible: false,
       isEditMode: false,
+      loading: false,
+
+      page: 1,
+      pageSize: 10,
+      total: 0,
       
       // 存储时间选择器生成的 [开始, 结束] 数组
       timeRange: [],
@@ -164,36 +187,72 @@ export default {
 
   computed: {
     // 过滤设备型号
-    filterDeviceList() {
-      return this.deviceList.filter(i =>
-        i.model && i.model.toLowerCase().includes(this.searchKeyword.toLowerCase())
-      )
-    }
+    // filterDeviceList() {
+    //   return this.deviceList.filter(i =>
+    //     i.model && i.model.toLowerCase().includes(this.searchKeyword.toLowerCase())
+    //   )
+    // }
   },
 
   methods: {
     goLogin() {
       this.$router.push('/')
     },
+    handleSearch() {
+      this.page = 1
+      this.loadDeviceList()
+    },
+
+    handlePageChange(page) {
+      this.page = page
+      this.loadDeviceList()
+    },
+
+    handleSizeChange(size) {
+      this.pageSize = size
+      this.page = 1
+      this.loadDeviceList()
+    },
 
     // ================= 1. 加载设备（查） =================
     async loadDeviceList() {
-      try {
-        const res = await request({
-          url: '/devices/', // 匹配后端 @router.get("/") 接口
-          method: 'get'
-        })
-        const responseData = res.data ? res.data : res
-        if (responseData.code === 20000) {
-          this.deviceList = responseData.data
-        } else {
-          this.$message.error('获取设备列表失败：' + responseData.message)
-        }
-      } catch (error) {
-        console.error('加载异常:', error)
-        this.$message.error('无法连接到后端服务器')
+  this.loading = true
+
+  try {
+    const res = await request({
+      url: '/devices/',
+      method: 'get',
+      params: {
+        keyword: this.searchKeyword,
+        page: this.page,
+        pageSize: this.pageSize
       }
-    },
+    })
+
+    const responseData = res.data ? res.data : res
+
+    if (responseData.code === 20000) {
+      const result = responseData.data
+
+      if (Array.isArray(result)) {
+        // 兼容旧后端：data 直接是数组
+        this.deviceList = result
+        this.total = result.length
+      } else {
+        // 新分页格式：data.items + data.total
+        this.deviceList = result.items || []
+        this.total = result.total || 0
+      }
+    } else {
+      this.$message.error('获取设备列表失败：' + responseData.message)
+    }
+  } catch (error) {
+    console.error('加载异常:', error)
+    this.$message.error('无法连接到后端服务器')
+  } finally {
+    this.loading = false
+  }
+},
 
     // 打开新增弹窗
     openAddDialog() {
@@ -324,5 +383,9 @@ export default {
 .bottom-btns {
   margin-top: 20px;
   text-align: left;
+}
+.pagination {
+  margin-top: 20px;
+  text-align: right;
 }
 </style>
