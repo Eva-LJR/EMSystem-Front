@@ -31,6 +31,18 @@
             clearable
           />
         </el-form-item>
+        <el-form-item
+          v-if="form.role === 'student'"
+          label="教师工号"
+          prop="teacher_identity_no"
+          required
+        >
+          <el-input
+            v-model="form.teacher_identity_no"
+            placeholder="请输入指导教师工号，例如 T2024001"
+            clearable
+          />
+        </el-form-item>
 
         <el-form-item
           v-if="form.role === 'teacher'"
@@ -205,6 +217,18 @@ export default {
       }
     }
 
+    const validateTeacherNo = (rule, value, callback) => {
+      if (this.form.role === 'student') {
+        if (!value || !value.trim()) {
+          callback(new Error('请输入指导教师工号'))
+        } else {
+          callback()
+        }
+      } else {
+        callback()
+      }
+    }
+
     return {
       loading: false,
       form: {
@@ -215,6 +239,7 @@ export default {
         confirmPassword: '',
         name: '',
         gender: '',
+        teacher_identity_no: '',
         email: '',
         college: '',
         major: '',
@@ -227,6 +252,9 @@ export default {
         ],
         identity_no: [
           { validator: validateAccount, trigger: 'blur' }
+        ],
+        teacher_identity_no: [
+          { validator: validateTeacherNo, trigger: 'blur' }
         ],
         phone: [
           { validator: validatePhone, trigger: 'blur' }
@@ -247,6 +275,7 @@ export default {
   methods: {
     handleRoleChange() {
       this.form.identity_no = ''
+      this.form.teacher_identity_no = ''
       this.form.phone = ''
       this.form.company = ''
       this.form.title = ''
@@ -268,6 +297,7 @@ export default {
           email: this.form.email || null,
           phone: this.form.phone || null,
           identity_no: this.form.identity_no || null,
+          teacher_identity_no: this.form.teacher_identity_no || null,
           college: this.form.college || null,
           major: this.form.major || null,
           title: this.form.title || null,

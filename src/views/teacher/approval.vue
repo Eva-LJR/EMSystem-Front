@@ -258,15 +258,16 @@ export default {
     },
 
     addStudent() {
-      if (!this.form.username) {
+      if (!this.form.username || !this.form.username.trim()) {
         this.$message.error('请输入学生学号')
         return
       }
 
-      bindStudent(this.form.username).then(() => {
+      bindStudent(this.form.username.trim()).then(() => {
         this.$message.success('学生绑定成功')
         this.addDialog = false
         this.loadStudentList()
+        this.loadData()
       }).catch(err => {
         this.$message.error(
           err.response?.data?.detail || '学生绑定失败'
@@ -283,6 +284,7 @@ export default {
         unbindStudent(username).then(() => {
           this.$message.success('已解除绑定')
           this.loadStudentList()
+          this.loadData()
         }).catch(err => {
           this.$message.error(
             err.response?.data?.detail || '解除绑定失败'

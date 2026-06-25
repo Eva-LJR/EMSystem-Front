@@ -78,3 +78,20 @@ export function getMyStudents() {
     method: 'get'
   })
 }
+
+export function bindStudent(studentNo) {
+  return request({
+    url: '/users/my-students',
+    method: 'post',
+    data: {
+      student_no: studentNo
+    }
+  })
+}
+
+export function unbindStudent(studentNo) {
+  return request({
+    url: `/users/my-students/${studentNo}`,
+    method: 'delete'
+  })
+}
