@@ -4,64 +4,43 @@
     <!-- ================= 顶部统计卡片 ================= -->
     <div class="card-row">
 
-      <!-- 设备总数 -->
       <el-card shadow="hover" class="stat-card">
-
         <div class="card-content">
-
           <div class="icon blue">
             <i class="el-icon-setting"></i>
           </div>
 
           <div class="info">
             <div class="label">设备总数</div>
-            <div class="value">
-              {{ deviceTotal }}
-            </div>
+            <div class="value">{{ summary.deviceTotal }}</div>
           </div>
-
         </div>
-
       </el-card>
 
-      <!-- 用户总数 -->
       <el-card shadow="hover" class="stat-card">
-
         <div class="card-content">
-
           <div class="icon green">
             <i class="el-icon-user"></i>
           </div>
 
           <div class="info">
             <div class="label">用户数</div>
-            <div class="value">
-              {{ userTotal }}
-            </div>
+            <div class="value">{{ summary.userTotal }}</div>
           </div>
-
         </div>
-
       </el-card>
 
-      <!-- 预约数 -->
       <el-card shadow="hover" class="stat-card">
-
         <div class="card-content">
-
           <div class="icon orange">
             <i class="el-icon-date"></i>
           </div>
 
           <div class="info">
             <div class="label">预约成功数</div>
-            <div class="value">
-              {{ bookingTotal }}
-            </div>
+            <div class="value">{{ summary.bookingSuccessTotal }}</div>
           </div>
-
         </div>
-
       </el-card>
 
     </div>
@@ -70,24 +49,19 @@
     <el-card shadow="never" class="chart-card">
 
       <div class="chart-header">
-
-        <div class="chart-title">
-          设备状态分布图
-        </div>
+        <div class="chart-title">设备状态分布图</div>
 
         <el-button
           type="primary"
           icon="el-icon-document"
-          @click="reportDialog = true"
+          @click="openReportDialog"
         >
           查看设备使用报表
         </el-button>
-
       </div>
 
-      <!-- 图表 -->
       <div
-        id="statusChart"
+        ref="statusChart"
         class="chart-box"
       ></div>
 
@@ -97,13 +71,11 @@
     <el-dialog
       title="设备使用报表"
       :visible.sync="reportDialog"
-      width="850px"
+      width="900px"
     >
 
-      <!-- 顶部 -->
       <div class="report-top">
 
-        <!-- 搜索 -->
         <el-input
           v-model="searchKeyword"
           placeholder="搜索设备"
@@ -112,53 +84,60 @@
           class="search-input"
         />
 
-        <!-- 切换 -->
         <div>
-
           <el-button
             :type="reportType === 'week' ? 'primary' : ''"
-            @click="reportType = 'week'"
+            @click="changeReportType('week')"
           >
             周报表
           </el-button>
 
           <el-button
             :type="reportType === 'month' ? 'primary' : ''"
-            @click="reportType = 'month'"
+            @click="changeReportType('month')"
           >
             月报表
           </el-button>
 
           <el-button
             :type="reportType === 'year' ? 'primary' : ''"
-            @click="reportType = 'year'"
+            @click="changeReportType('year')"
           >
             年报表
           </el-button>
-
         </div>
 
       </div>
 
-      <!-- 表格 -->
+      <div class="report-summary">
+        <span>统计周期：{{ reportTypeText }}</span>
+        <span>成功预约次数：{{ reportTotalRecords }} 次</span>
+        <span>校外收费合计：{{ reportTotalRevenue }} 元</span>
+      </div>
+
       <el-table
+        v-loading="reportLoading"
         :data="filterReportList"
         border
         style="width:100%;margin-top:20px;"
       >
-
         <el-table-column
-          prop="name"
-          label="设备名"
+          prop="device_name"
+          label="设备名称"
           align="center"
         />
 
         <el-table-column
-          prop="count"
+          prop="use_count"
           label="使用次数（次）"
           align="center"
         />
 
+        <el-table-column
+          prop="revenue"
+          label="收费金额（元）"
+          align="center"
+        />
       </el-table>
 
     </el-dialog>
@@ -168,191 +147,188 @@
 
 <script>
 import * as echarts from 'echarts'
-import request from '@/utils/request' // 💡 引入真实接口请求工具
+import request from '@/utils/request'
 
 export default {
   name: 'LabLeaderStats',
+
   data() {
     return {
-      // 数据
-      deviceList: [],
-      bookingList: [],
+      summary: {
+        deviceTotal: 0,
+        userTotal: 0,
+        bookingSuccessTotal: 0,
+        deviceStatus: []
+      },
 
-      // 弹窗
+      chartInstance: null,
+
       reportDialog: false,
-      // 搜索
-      searchKeyword: '',
-      // 报表类型
       reportType: 'week',
-      // 用户总数（暂存）
-      realUserCount: 0
+      searchKeyword: '',
+      reportList: [],
+      reportTotalRecords: 0,
+      reportTotalRevenue: 0,
+      reportLoading: false
     }
   },
 
   computed: {
-    // ================= 设备总数 =================
-    deviceTotal() {
-      return this.deviceList.length
+    reportTypeText() {
+      if (this.reportType === 'week') return '近 7 天'
+      if (this.reportType === 'year') return '近 1 年'
+      return '近 30 天'
     },
 
-    // ================= 用户总数 =================
-    userTotal() {
-      // 如果后端有 /users/ 接口可以替换，这里暂时返回真实的动态总数或保底值
-      return this.realUserCount > 0 ? this.realUserCount : 124 
-    },
-
-    // ================= 预约成功数 =================
-    // bookingTotal() {
-    //   // 💡 适配后端的审批状态（假设通过状态为 APPROVED 或 已通过）
-    //   return this.bookingList.filter(
-    //     item => item.status === 'APPROVED' || item.status === '已通过'
-    //   ).length
-    // },
-    bookingTotal() {
-      // 💡 匹配真实的后端数据库状态
-      return this.bookingList.filter(
-        item => item.status === '负责人已通过'
-      ).length
-    },
-
-    // ================= 状态统计 =================
-    statusCount() {
-      return {
-        available: this.deviceList.filter(i => i.status === '可预约').length,
-        using: this.deviceList.filter(i => i.status === '使用中').length,
-        repairing: this.deviceList.filter(i => i.status === '检修中').length,
-        broken: this.deviceList.filter(i => i.status === '已报废').length
-      }
-    },
-
-    // ================= 使用报表 (处理后端关联数据) =================
     filterReportList() {
-      const map = {}
+      const keyword = this.searchKeyword.trim()
 
-      // 统计已通过预约
-      this.bookingList
-        .filter(i => i.status === 'APPROVED' || i.status === '已通过' || i.status === '负责人已通过')
-        .forEach(item => {
-          // 💡 核心修复：真实的审批单里往往只存了 device_id，需要去 deviceList 找对应的设备名
-          const device = this.deviceList.find(d => d.id === item.device_id)
-          const deviceName = device ? device.model : (item.deviceName || `未知设备(${item.device_id})`)
+      if (!keyword) {
+        return this.reportList
+      }
 
-          if (!map[deviceName]) {
-            map[deviceName] = 0
-          }
-
-          // 周/月/年倍率模拟
-          if (this.reportType === 'week') {
-            map[deviceName] += 1
-          } else if (this.reportType === 'month') {
-            map[deviceName] += 5
-          } else {
-            map[deviceName] += 20
-          }
-        })
-
-      return Object.keys(map)
-        .map(key => {
-          return {
-            name: key,
-            count: map[key]
-          }
-        })
-        .filter(item =>
-          item.name.includes(this.searchKeyword)
-        )
+      return this.reportList.filter(item =>
+        item.device_name &&
+        item.device_name.includes(keyword)
+      )
     }
   },
 
   mounted() {
-    // 💡 启动时加载真实数据
-    this.loadData()
+    this.loadSummary()
+    window.addEventListener('resize', this.resizeChart)
+  },
+
+  beforeDestroy() {
+    window.removeEventListener('resize', this.resizeChart)
+
+    if (this.chartInstance) {
+      this.chartInstance.dispose()
+      this.chartInstance = null
+    }
   },
 
   methods: {
-    // ================= 加载真实数据 =================
-    async loadData() {
+    async loadSummary() {
       try {
-        // 💡 使用 Promise.all 并发请求设备列表和预约单列表，提升页面加载速度
-        const [deviceRes, approvalRes] = await Promise.all([
-          request({ url: '/devices/', method: 'get' }),
-          // 这里假设后端有一个获取所有审批单的接口，如果没有，后端可以补一个 GET /approvals/
-          request({ url: '/approvals/', method: 'get' }).catch(() => ({ data: { data: [] } }))
-        ])
-
-        // 赋值设备数据
-        const dData = deviceRes.data ? deviceRes.data : deviceRes
-        if (dData.code === 20000) {
-          this.deviceList = dData.data
-        }
-
-        // 赋值预约数据
-        const aData = approvalRes.data ? approvalRes.data : approvalRes
-        if (aData.code === 20000) {
-          this.bookingList = aData.data
-        }
-
-        // 💡 核心修复：必须等数据全赋值完了，再通知 ECharts 去画图！
-        this.$nextTick(() => {
-          this.initChart()
+        const res = await request({
+          url: '/stats/summary',
+          method: 'get'
         })
 
+        const responseData = res.data ? res.data : res
+
+        if (responseData.code === 20000) {
+          this.summary = responseData.data
+
+          this.$nextTick(() => {
+            this.initChart()
+          })
+        } else {
+          this.$message.error(responseData.message || '统计数据加载失败')
+        }
       } catch (error) {
         console.error('加载统计数据失败:', error)
-        this.$message.error('仪表盘数据同步失败，请检查网络')
+        this.$message.error('统计数据加载失败')
       }
     },
 
-    // ================= 初始化图表 =================
     initChart() {
-      const chartDom = document.getElementById('statusChart')
-      if (!chartDom) return
-      
-      const chart = echarts.init(chartDom)
+      const chartDom = this.$refs.statusChart
 
-      chart.setOption({
-        tooltip: {},
+      if (!chartDom) return
+
+      if (!this.chartInstance) {
+        this.chartInstance = echarts.init(chartDom)
+      }
+
+      const chartData = this.summary.deviceStatus || []
+
+      this.chartInstance.setOption({
+        tooltip: {
+          trigger: 'axis'
+        },
         xAxis: {
           type: 'category',
-          data: ['可预约', '使用中', '检修中', '已报废']
+          data: chartData.map(item => item.name)
         },
         yAxis: {
-          type: 'value'
+          type: 'value',
+          minInterval: 1
         },
         series: [
           {
+            name: '设备数量',
             type: 'bar',
-            data: [
-              this.statusCount.available,
-              this.statusCount.using,
-              this.statusCount.repairing,
-              this.statusCount.broken
-            ],
-            // 柱子颜色稍微美化一下，跟顶部卡片对应
+            data: chartData.map(item => item.value),
+            barWidth: 60,
             itemStyle: {
               color: function(params) {
-                const colorList = ['#67C23A', '#F56C6C', '#E6A23C', '#909399'];
+                const colorList = ['#67C23A', '#409EFF', '#E6A23C', '#F56C6C', '#909399']
                 return colorList[params.dataIndex]
               }
-            },
-            barWidth: 60
+            }
           }
         ]
       })
+    },
+
+    resizeChart() {
+      if (this.chartInstance) {
+        this.chartInstance.resize()
+      }
+    },
+
+    openReportDialog() {
+      this.reportDialog = true
+      this.loadReport()
+    },
+
+    changeReportType(type) {
+      this.reportType = type
+      this.loadReport()
+    },
+
+    async loadReport() {
+      this.reportLoading = true
+
+      try {
+        const res = await request({
+          url: '/stats/report',
+          method: 'get',
+          params: {
+            range_type: this.reportType
+          }
+        })
+
+        const responseData = res.data ? res.data : res
+
+        if (responseData.code === 20000) {
+          const data = responseData.data || {}
+
+          this.reportList = data.device_ranking || []
+          this.reportTotalRecords = data.total_records || 0
+          this.reportTotalRevenue = data.total_revenue || 0
+        } else {
+          this.$message.error(responseData.message || '报表加载失败')
+        }
+      } catch (error) {
+        console.error('加载设备使用报表失败:', error)
+        this.$message.error('设备使用报表加载失败')
+      } finally {
+        this.reportLoading = false
+      }
     }
   }
 }
 </script>
 
 <style scoped>
-
 .stats-page {
   padding: 30px;
   background: #f5f7fa;
   min-height: 100vh;
 }
-
-/* ================= 卡片 ================= */
 
 .card-row {
   display: flex;
@@ -373,16 +349,12 @@ export default {
 .icon {
   width: 70px;
   height: 70px;
-
   border-radius: 18px;
-
   display: flex;
   justify-content: center;
   align-items: center;
-
   font-size: 30px;
   color: white;
-
   margin-right: 18px;
 }
 
@@ -410,8 +382,6 @@ export default {
   color: #303133;
 }
 
-/* ================= 图表 ================= */
-
 .chart-card {
   border-radius: 16px;
 }
@@ -420,7 +390,6 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
-
   margin-bottom: 20px;
 }
 
@@ -433,8 +402,6 @@ export default {
   height: 420px;
 }
 
-/* ================= 报表 ================= */
-
 .report-top {
   display: flex;
   justify-content: space-between;
@@ -445,4 +412,11 @@ export default {
   width: 280px;
 }
 
+.report-summary {
+  margin-top: 20px;
+  display: flex;
+  gap: 30px;
+  font-size: 14px;
+  color: #606266;
+}
 </style>
