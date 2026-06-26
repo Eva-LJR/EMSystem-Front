@@ -94,7 +94,7 @@
   class="pagination"
   background
   layout="total, sizes, prev, pager, next, jumper"
-  :total="total"
+  :total="deviceTotal"
   :current-page="page"
   :page-size="pageSize"
   :page-sizes="[5, 10, 20, 50]"
@@ -135,7 +135,7 @@
         </el-form-item>
 
         <el-form-item label="预计费用">
-          <el-input :value="total + ' 元'" disabled />
+          <el-input :value="estimatedFee + ' 元'" disabled />
         </el-form-item>
 
         <el-form-item label="用途">
@@ -180,7 +180,7 @@ export default {
 
       page: 1,
       pageSize: 10,
-      total: 0,
+      deviceTotal: 0,
 
       bookingForm: {
         deviceName: '',
@@ -217,7 +217,7 @@ export default {
       return ((end - start) / 3600000).toFixed(2)
     },
 
-    total() {
+    estimatedFee() {
       return (this.currentPrice * Number(this.hours || 0)).toFixed(2)
     }
   },
@@ -252,10 +252,10 @@ export default {
 
     if (Array.isArray(result)) {
       this.deviceList = result
-      this.total = result.length
+      this.deviceTotal = result.length
     } else {
       this.deviceList = result.items || []
-      this.total = result.total || 0
+      this.deviceTotal = result.total || 0
     }
   }).catch(err => {
     console.log('校外人员设备接口错误：', err)

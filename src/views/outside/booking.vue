@@ -86,6 +86,16 @@
 
             <el-tag
               v-else-if="
+                scope.row.statusCode === 'payment_submitted' ||
+                scope.row.status === '待管理员确认缴费'
+              "
+              type="warning"
+            >
+              待管理员确认缴费
+            </el-tag>
+
+            <el-tag
+              v-else-if="
                 scope.row.status === '已通过' ||
                 scope.row.status === '负责人已通过'
               "
@@ -131,84 +141,126 @@
 
         <!-- 操作 -->
         <el-table-column
-          label="操作"
-          align="center"
-          width="220"
-        >
-          <template slot-scope="scope">
+  label="操作"
+  align="center"
+  width="240"
+>
+  <template slot-scope="scope">
 
-            <!-- 管理员/负责人审批前，可以撤销 -->
-            <el-button
-               v-if="
-    (
-      scope.row.status === '待指导教师审批' ||
-      scope.row.status === '待管理员初审' ||
-      scope.row.status === '待负责人审批' ||
-      scope.row.status === '待财务缴费' ||
-      scope.row.status === '已通过' ||
-      scope.row.status === '负责人已通过'
-    ) &&
-    getUseStatus(scope.row) !== '使用中' &&
-    getUseStatus(scope.row) !== '已使用'
-  "
-              type="danger"
-              size="mini"
-              round
-              @click="cancelBooking(scope.row.id)"
-            >
-              撤销预约
-            </el-button>
+    <!-- 待财务缴费：显示去缴费 + 撤销预约 -->
+    <div
+      v-if="
+        scope.row.statusCode === 'pending_payment' ||
+        scope.row.status === '待财务缴费' ||
+        scope.row.status === '待缴费'
+      "
+    >
+      <el-button
+        type="warning"
+        size="mini"
+        round
+        @click="goPay(scope.row)"
+      >
+        去缴费
+      </el-button>
 
-            <!-- 待缴费：可以缴费，也可以撤销 -->
-            <div
-              v-else-if="
-                scope.row.status === '待财务缴费' ||
-                scope.row.status === '待缴费'
-              "
-            >
-              <el-button
-                type="warning"
-                size="mini"
-                round
-                @click="payBooking(scope.row.id)"
-              >
-                去缴费
-              </el-button>
+      <el-button
+        type="danger"
+        size="mini"
+        round
+        @click="cancelBooking(scope.row.id)"
+      >
+        撤销预约
+      </el-button>
+    </div>
 
-              <el-button
-                type="danger"
-                size="mini"
-                round
-                @click="cancelBooking(scope.row.id)"
-              >
-                撤销预约
-              </el-button>
-            </div>
+    <!-- 已提交缴费，等待管理员确认 -->
+    <div
+      v-else-if="
+        scope.row.statusCode === 'payment_submitted' ||
+        scope.row.status === '待管理员确认缴费'
+      "
+    >
+      <el-tag type="warning">
+        等待管理员确认
+      </el-tag>
+    </div>
 
-            <!-- 已通过：仍然可以提前 1 天以上撤销，由后端校验 -->
-            <el-button
-              v-else-if="
-                scope.row.status === '已通过' ||
-                scope.row.status === '负责人已通过'
-              "
-              type="danger"
-              size="mini"
-              round
-              @click="cancelBooking(scope.row.id)"
-            >
-              撤销预约
-            </el-button>
+    <!-- 其他可撤销状态 -->
+    <el-button
+      v-else-if="
+        (
+          scope.row.status === '待指导教师审批' ||
+          scope.row.status === '待管理员初审' ||
+          scope.row.status === '待负责人审批' ||
+          scope.row.status === '已通过' ||
+          scope.row.status === '负责人已通过'
+        ) &&
+        getUseStatus(scope.row) !== '使用中' &&
+        getUseStatus(scope.row) !== '已使用'
+      "
+      type="danger"
+      size="mini"
+      round
+      @click="cancelBooking(scope.row.id)"
+    >
+      撤销预约
+    </el-button>
 
-            <span v-else style="color:#999;">
-              不可操作
-            </span>
+    <span v-else style="color:#999;">
+      不可操作
+    </span>
 
-          </template>
-        </el-table-column>
+  </template>
+</el-table-column>
 
       </el-table>
 
     </el-card>
+
+    <el-dialog
+  title="模拟财务系统缴费"
+  :visible.sync="paymentDialogVisible"
+  width="520px"
+>
+  <el-descriptions :column="1" border>
+    <el-descriptions-item label="预约编号">
+      {{ currentPayBooking.bookingNo || currentPayBooking.id }}
+    </el-descriptions-item>
+
+    <el-descriptions-item label="设备名称">
+      {{ currentPayBooking.deviceName }}
+    </el-descriptions-item>
+
+    <el-descriptions-item label="应缴金额">
+      <span style="color:#E6A23C; font-weight:bold;">
+        {{ currentPayBooking.totalFee || 0 }} 元
+      </span>
+    </el-descriptions-item>
+
+    <el-descriptions-item label="缴费方式">
+      模拟学校财务系统线上缴费
+    </el-descriptions-item>
+
+    <el-descriptions-item label="说明">
+      当前系统未真实接入学校财务平台，此处用于模拟校外人员完成线上缴费。
+      缴费提交后，预约将进入“待管理员确认缴费”状态。
+    </el-descriptions-item>
+  </el-descriptions>
+
+  <div slot="footer">
+    <el-button @click="paymentDialogVisible = false">
+      取消
+    </el-button>
+
+    <el-button
+      type="primary"
+      @click="confirmMockPayment"
+    >
+      确认已完成模拟缴费
+    </el-button>
+  </div>
+</el-dialog>
 
   </div>
 </template>
@@ -221,7 +273,9 @@ export default {
 
   data() {
     return {
-      bookingList: []
+      bookingList: [],
+      paymentDialogVisible: false,
+      currentPayBooking: {}
     }
   },
 
@@ -274,24 +328,30 @@ export default {
       })
     },
 
-    payBooking(id) {
-      this.$confirm('确定已经完成财务缴费吗？', '缴费确认', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }).then(() => {
-        payBooking(id).then(() => {
-          this.$message.success('缴费成功，预约已通过')
-          this.loadBookingList()
-        }).catch(err => {
-          this.$message.error(
-            err.response?.data?.detail || '缴费失败'
-          )
-        })
-      }).catch(() => {
-        this.$message.info('已取消缴费操作')
-      })
-    },
+    goPay(row) {
+  this.currentPayBooking = row
+  this.paymentDialogVisible = true
+},
+
+confirmMockPayment() {
+  if (!this.currentPayBooking || !this.currentPayBooking.id) {
+    this.$message.error('预约信息不存在')
+    return
+  }
+
+  payBooking(this.currentPayBooking.id).then(res => {
+    this.$message.success(
+      res.data.message || '缴费信息已提交，请等待设备管理员确认'
+    )
+    this.paymentDialogVisible = false
+    this.currentPayBooking = {}
+    this.loadBookingList()
+  }).catch(err => {
+    this.$message.error(
+      err.response?.data?.detail || '缴费提交失败'
+    )
+  })
+},
 
     getUseStatus(row) {
   if (
