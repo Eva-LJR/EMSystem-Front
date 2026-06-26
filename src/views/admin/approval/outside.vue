@@ -146,6 +146,7 @@
       </el-form>
 
       <div slot="footer" class="dialog-footer">
+         <el-button type="warning" @click="checkDeviceStatus">查看预约时段设备实时状态</el-button>
         <el-button type="danger" @click="reject">驳 回</el-button>
         <el-button type="primary" @click="pass">同意并通过</el-button>
       </div>
@@ -188,6 +189,77 @@ export default {
       this.currentBooking = row
       this.detailDialog = true
     },
+    async checkDeviceStatus() {
+  if (!this.currentBooking || !this.currentBooking.id) {
+    this.$message.error('预约单信息不存在')
+    return
+  }
+
+  try {
+    const res = await request({
+      url: `/approvals/${this.currentBooking.id}/availability`,
+      method: 'get'
+    })
+
+    const responseData = res.data ? res.data : res
+
+    if (responseData.code !== 20000) {
+      this.$message.error(responseData.message || '设备时段校验失败')
+      return
+    }
+
+    const data = responseData.data
+    const device = data.device || {}
+    const booking = data.booking || {}
+    const conflicts = data.conflicts || []
+
+    let conflictText = ''
+
+    if (conflicts.length > 0) {
+      conflictText = conflicts.map(item => {
+        return `
+          <p>
+            预约编号：${item.bookingNo || item.id}<br/>
+            申请人：${item.applicantName || '-'}<br/>
+            占用时段：${this.format(item.startTime)} 至 ${this.format(item.endTime)}<br/>
+            当前状态：${item.status || '-'}
+          </p>
+        `
+      }).join('<hr/>')
+    } else {
+      conflictText = '<p>无冲突预约</p>'
+    }
+
+    this.$alert(
+      `
+      <div>
+        <p><b>校验结果：</b>
+          <span style="color:${data.available ? '#67C23A' : '#F56C6C'};">
+            ${data.available ? '可用' : '不可用'}
+          </span>
+        </p>
+        <p><b>说明：</b>${data.message}</p>
+        <p><b>设备名称：</b>${device.name || device.model || '-'}</p>
+        <p><b>设备编号：</b>${device.deviceCode || '-'}</p>
+        <p><b>设备当前状态：</b>${device.status || '-'}</p>
+        <p><b>申请时段：</b>${this.format(booking.startTime)} 至 ${this.format(booking.endTime)}</p>
+        <hr/>
+        <p><b>冲突预约：</b></p>
+        ${conflictText}
+      </div>
+      `,
+      '预约时段设备可用性校验',
+      {
+        dangerouslyUseHTMLString: true,
+        confirmButtonText: '确定'
+      }
+    )
+  } catch (error) {
+    this.$message.error(
+      error.response?.data?.detail || '设备时段校验失败'
+    )
+  }
+},
     // 💡 接入真后端：通过接口
     async pass() {
       try {
