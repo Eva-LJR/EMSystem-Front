@@ -16,33 +16,95 @@
         <el-table-column label="单位" prop="company" align="center" />
         <el-table-column label="预约设备" prop="device_name" align="center" />
 
-        <el-table-column label="状态/操作" align="center" width="180">
-          <template slot-scope="scope">
-            <el-button
-              v-if="scope.row.status === '待管理员初审'"
-              type="primary"
-              size="mini"
-              round
-              @click="openDialog(scope.row)"
-            >
-              查看详情 / 审批
-            </el-button>
+        <el-table-column label="状态/操作" align="center" width="220">
+  <template slot-scope="scope">
 
-            <el-tag
-              v-else-if="scope.row.status === '待负责人审批' || scope.row.status === '待财务缴费' || scope.row.status === '负责人已通过'"
-              type="success"
-            >
-              初审已通过
-            </el-tag>
+    <!-- 设备管理员初审 -->
+    <el-button
+      v-if="
+        scope.row.statusCode === 'pending_admin' ||
+        scope.row.status === '待管理员初审'
+      "
+      type="primary"
+      size="mini"
+      round
+      @click="openDialog(scope.row)"
+    >
+      查看详情 / 初审
+    </el-button>
 
-            <el-tag
-              v-else-if="scope.row.status.includes('驳回')"
-              type="danger"
-            >
-              已驳回
-            </el-tag>
-          </template>
-        </el-table-column>
+    <!-- 负责人已通过，但校外人员还没点击去缴费：管理员不能确认 -->
+    <el-tag
+      v-else-if="
+        scope.row.statusCode === 'pending_payment' ||
+        scope.row.status === '待财务缴费'
+      "
+      type="warning"
+    >
+      待校外人员缴费
+    </el-tag>
+
+    <!-- 校外人员已经模拟缴费：管理员才能确认 -->
+    <el-button
+      v-else-if="
+        scope.row.statusCode === 'payment_submitted' ||
+        scope.row.status === '待管理员确认缴费'
+      "
+      type="success"
+      size="mini"
+      round
+      @click="confirmPayment(scope.row)"
+    >
+      确认缴费
+    </el-button>
+
+    <el-tag
+      v-else-if="
+        scope.row.statusCode === 'pending_leader' ||
+        scope.row.status === '待负责人审批'
+      "
+      type="warning"
+    >
+      待负责人审批
+    </el-tag>
+
+    <el-tag
+      v-else-if="
+        scope.row.statusCode === 'approved' ||
+        scope.row.status === '已通过'
+      "
+      type="success"
+    >
+      已通过
+    </el-tag>
+
+    <el-tag
+      v-else-if="
+        scope.row.statusCode === 'rejected' ||
+        scope.row.status === '已驳回' ||
+        (scope.row.status && scope.row.status.includes('驳回'))
+      "
+      type="danger"
+    >
+      已驳回
+    </el-tag>
+
+    <el-tag
+      v-else-if="
+        scope.row.statusCode === 'cancelled' ||
+        scope.row.status === '已撤销'
+      "
+      type="info"
+    >
+      已撤销
+    </el-tag>
+
+    <el-tag v-else type="info">
+      {{ scope.row.status || '未知状态' }}
+    </el-tag>
+
+  </template>
+</el-table-column>
       </el-table>
     </el-card>
 
@@ -56,6 +118,23 @@
           <el-col :span="12"><el-form-item label="预约设备:"><b>{{ currentBooking.device_name }}</b></el-form-item></el-col>
           <el-col :span="12"><el-form-item label="申请时间:">{{ format(currentBooking.created_at, true) }}</el-form-item></el-col>
         </el-row>
+        <el-row>
+  <el-col :span="12">
+    <el-form-item label="应缴费用:">
+      <b style="color:#E6A23C;">{{ currentBooking.total_fee || currentBooking.totalFee || 0 }} 元</b>
+    </el-form-item>
+  </el-col>
+  <el-col :span="12">
+    <el-form-item label="缴费状态:">
+      <el-tag v-if="currentBooking.is_paid || currentBooking.isPaid" type="success">
+        已确认缴费
+      </el-tag>
+      <el-tag v-else type="warning">
+        未确认缴费
+      </el-tag>
+    </el-form-item>
+  </el-col>
+</el-row>
         <el-form-item label="预约时段:">
           <el-tag size="medium">{{ format(currentBooking.start_time) }}</el-tag>
           <span style="margin: 0 10px;">至</span>
@@ -95,7 +174,7 @@ export default {
         const res = await request({
           url: '/approvals/',
           method: 'get',
-          params: { role: 'outside', current_step: 'admin' }
+          params: { role: 'outside'}
         })
         const responseData = res.data ? res.data : res
         if (responseData.code === 20000) {
@@ -137,6 +216,33 @@ export default {
         this.$message.error('操作失败')
       }
     },
+    async confirmPayment(row) {
+  try {
+    await this.$confirm(
+      `确认该预约已完成缴费吗？应缴金额：${row.total_fee || row.totalFee || 0} 元。确认后预约将正式通过。`,
+      '确认缴费',
+      {
+        confirmButtonText: '确认缴费',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+
+    await request({
+      url: `/approvals/${row.id}/finance-callback`,
+      method: 'post'
+    })
+
+    this.$message.success('缴费确认成功，预约已通过')
+    this.loadData()
+  } catch (error) {
+    if (error !== 'cancel') {
+      this.$message.error(
+        error.response?.data?.detail || '缴费确认失败'
+      )
+    }
+  }
+},
     // format(t) {
     //   if (!t) return ''
     //   const date = new Date(t)
