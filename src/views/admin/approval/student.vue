@@ -1,7 +1,7 @@
 <template>
   <div class="page">
 
-    <div class="top-title" style="background: #67C23A;">
+    <div class="top-title" >
       学生预约单初审
     </div>
 
@@ -9,6 +9,7 @@
 
       <el-card shadow="never">
         <el-table
+          v-loading="loading"
           :data="bookingList"
           border
           style="width:100%"
@@ -34,9 +35,14 @@
             width="200"
           >
             <template slot-scope="scope">
-              <div v-if="scope.row.status === '待管理员初审'">
+              <div
+                v-if="
+                  scope.row.statusCode === 'pending_admin' ||
+                  scope.row.status === '待管理员初审'
+                "
+              >
                 <el-button
-                  type="success"
+                  type="primary"
                   size="mini"
                   round
                   @click="openDetail(scope.row)"
@@ -45,12 +51,33 @@
                 </el-button>
               </div>
 
-              <div v-else-if="scope.row.status === '待负责人审批' || scope.row.status === '负责人已通过' || scope.row.status === '待财务缴费'">
-                <el-tag type="success">初审已通过</el-tag>
+              <div
+                v-else-if="
+                  scope.row.statusCode === 'approved' ||
+                  scope.row.status === '已通过' ||
+                  scope.row.status === '负责人已通过'
+                "
+              >
+                <el-tag type="success">已通过</el-tag>
               </div>
 
-              <div v-else-if="scope.row.status.includes('驳回')">
+              <div
+                v-else-if="
+                  scope.row.statusCode === 'rejected' ||
+                  scope.row.status === '已驳回' ||
+                  (scope.row.status && scope.row.status.includes('驳回'))
+                "
+              >
                 <el-tag type="danger">已驳回</el-tag>
+              </div>
+
+              <div
+                v-else-if="
+                  scope.row.statusCode === 'cancelled' ||
+                  scope.row.status === '已撤销'
+                "
+              >
+                <el-tag type="info">已撤销</el-tag>
               </div>
 
               <div v-else>
@@ -59,6 +86,17 @@
             </template>
           </el-table-column>
         </el-table>
+        <el-pagination
+          class="pagination"
+          background
+          layout="total, sizes, prev, pager, next, jumper"
+          :total="total"
+          :current-page="page"
+          :page-size="pageSize"
+          :page-sizes="[5, 10, 20, 50]"
+          @current-change="handlePageChange"
+          @size-change="handleSizeChange"
+        />
       </el-card>
 
       <div class="bottom-btn">
@@ -132,7 +170,12 @@ export default {
     return {
       bookingList: [],
       detailDialog: false,
-      currentBooking: null
+      currentBooking: null,
+
+      loading: false,
+      page: 1,
+      pageSize: 10,
+      total: 0
     }
   },
   computed: {
@@ -175,20 +218,39 @@ export default {
   },
   methods: {
     async loadData() {
+  this.loading = true
+
   try {
     const res = await request({
       url: '/approvals/',
       method: 'get',
-      params: { role: 'student', current_step: 'admin' }
+      params: {
+        role: 'student',
+        current_step: 'admin',
+        include_history: true,
+        recent_months: 3,
+        page: this.page,
+        pageSize: this.pageSize
+      }
     })
 
     const responseData = res.data ? res.data : res
 
     if (responseData.code === 20000) {
-      this.bookingList = responseData.data
+      const result = responseData.data
+
+      if (Array.isArray(result)) {
+        this.bookingList = result
+        this.total = result.length
+      } else {
+        this.bookingList = result.items || []
+        this.total = result.total || 0
+      }
     }
   } catch (error) {
     this.$message.error('获取学生预约单失败')
+  } finally {
+    this.loading = false
   }
 },
 
@@ -325,7 +387,18 @@ export default {
   const mm = String(date.getMinutes()).padStart(2, '0')
 
   return `${y}-${m}-${d} ${h}:${mm}`
-}
+},
+
+    handlePageChange(page) {
+      this.page = page
+      this.loadData()
+    },
+
+    handleSizeChange(size) {
+      this.pageSize = size
+      this.page = 1
+      this.loadData()
+    },
   }
 }
 </script>
@@ -358,5 +431,9 @@ export default {
   margin-top:25px;
   display:flex;
   justify-content:flex-end;
+}
+.pagination {
+  margin-top: 20px;
+  text-align: right;
 }
 </style>

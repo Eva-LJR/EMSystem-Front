@@ -1,11 +1,16 @@
 <template>
   <div class="page">
-    <div class="header">
+    <div class="top-title" >
       校外人员初审单
     </div>
 
     <el-card class="table-card">
-      <el-table :data="bookingList" border style="width: 100%">
+      <el-table
+        v-loading="loading"
+        :data="bookingList" 
+        border 
+        style="width: 100%"
+      >
         <el-table-column label="预约编号" align="center" width="100">
           <template slot-scope="scope">
             {{ scope.row.id }}
@@ -106,6 +111,17 @@
   </template>
 </el-table-column>
       </el-table>
+      <el-pagination
+        class="pagination"
+        background
+        layout="total, sizes, prev, pager, next, jumper"
+        :total="total"
+        :current-page="page"
+        :page-size="pageSize"
+        :page-sizes="[5, 10, 20, 50]"
+        @current-change="handlePageChange"
+        @size-change="handleSizeChange"
+      />
     </el-card>
 
     <el-dialog title="预约单初审详情" :visible.sync="detailDialog" width="650px">
@@ -162,7 +178,12 @@ export default {
     return {
       bookingList: [],
       detailDialog: false,
-      currentBooking: {}
+      currentBooking: {},
+
+      loading: false,
+      page: 1,
+      pageSize: 10,
+      total: 0
     }
   },
   created() {
@@ -171,18 +192,38 @@ export default {
   methods: {
     // 💡 接入真后端：只查询流转到“管理员”这里的“校外人员”申请
     async loadData() {
+      this.loading = true
+
       try {
         const res = await request({
           url: '/approvals/',
           method: 'get',
-          params: { role: 'outside'}
+          params: {
+            role: 'outside',
+            include_history: true,
+            recent_months: 3,
+            page: this.page,
+            pageSize: this.pageSize
+          }
         })
+
         const responseData = res.data ? res.data : res
+
         if (responseData.code === 20000) {
-          this.bookingList = responseData.data
+          const result = responseData.data
+
+          if (Array.isArray(result)) {
+            this.bookingList = result
+            this.total = result.length
+          } else {
+            this.bookingList = result.items || []
+            this.total = result.total || 0
+          }
         }
       } catch (error) {
         this.$message.error('获取单据失败')
+      } finally {
+        this.loading = false
       }
     },
     openDialog(row) {
@@ -343,7 +384,17 @@ export default {
   const mm = String(date.getMinutes()).padStart(2, '0')
 
   return `${y}-${m}-${d} ${h}:${mm}`
-}
+},
+    handlePageChange(page) {
+      this.page = page
+      this.loadData()
+    },
+
+    handleSizeChange(size) {
+      this.pageSize = size
+      this.page = 1
+      this.loadData()
+    },
   }
 }
 </script>
@@ -353,6 +404,19 @@ export default {
   min-height: 100vh;
   background: #f5f7fa;
   padding: 30px;
+}
+.top-title{
+  width:100%;
+  height:60px;
+  background:#409EFF;
+  color:white;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:24px;
+  font-weight:700;
+  border-radius:12px;
+  margin-bottom:25px;
 }
 .header {
   font-size: 24px;
@@ -365,5 +429,9 @@ export default {
 }
 .detail-form {
   margin-top: -15px;
+}
+.pagination {
+  margin-top: 20px;
+  text-align: right;
 }
 </style>
