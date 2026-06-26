@@ -131,7 +131,6 @@ export default {
   data() {
     return {
       bookingList: [],
-      deviceList: [],
       detailDialog: false,
       currentBooking: null
     }
@@ -176,56 +175,99 @@ export default {
   },
   methods: {
     async loadData() {
-      try {
-        const [appRes, devRes] = await Promise.all([
-          request({
-            url: '/approvals/',
-            method: 'get',
-            params: { role: 'student', current_step: 'admin' }
-          }),
-          request({
-            url: '/devices/',
-            method: 'get'
-          })
-        ])
+  try {
+    const res = await request({
+      url: '/approvals/',
+      method: 'get',
+      params: { role: 'student', current_step: 'admin' }
+    })
 
-        const resData = appRes.data ? appRes.data : appRes
-        if (resData.code === 20000) {
-          this.bookingList = resData.data
-        }
+    const responseData = res.data ? res.data : res
 
-        const devData = devRes.data ? devRes.data : devRes
-        if (devData.code === 20000) {
-          this.deviceList = devData.data
-        }
-      } catch (error) {
-        this.$message.error('获取单据或设备数据失败')
-      }
-    },
+    if (responseData.code === 20000) {
+      this.bookingList = responseData.data
+    }
+  } catch (error) {
+    this.$message.error('获取学生预约单失败')
+  }
+},
 
     openDetail(row) {
       this.currentBooking = row
       this.detailDialog = true
     },
 
-    checkDeviceStatus() {
-      if (!this.currentBooking) return
+    async checkDeviceStatus() {
+  if (!this.currentBooking || !this.currentBooking.id) {
+    this.$message.error('预约单信息不存在')
+    return
+  }
 
-      const device = this.deviceList.find(item => {
-        return item.model === this.currentBooking.device_name
-      })
+  try {
+    const res = await request({
+      url: `/approvals/${this.currentBooking.id}/availability`,
+      method: 'get'
+    })
 
-      if (!device) {
-        this.$message.error('该预约关联的设备型号在系统库中未找到')
-        return
+    const responseData = res.data ? res.data : res
+
+    if (responseData.code !== 20000) {
+      this.$message.error(responseData.message || '设备时段校验失败')
+      return
+    }
+
+    const data = responseData.data
+    const device = data.device || {}
+    const booking = data.booking || {}
+    const conflicts = data.conflicts || []
+
+    let conflictText = ''
+
+    if (conflicts.length > 0) {
+      conflictText = conflicts.map(item => {
+        return `
+          <p>
+            预约编号：${item.bookingNo || item.id}<br/>
+            申请人：${item.applicantName || '-'}<br/>
+            占用时段：${this.format(item.startTime)} 至 ${this.format(item.endTime)}<br/>
+            当前状态：${item.status || '-'}
+          </p>
+        `
+      }).join('<hr/>')
+    } else {
+      conflictText = '<p>无冲突预约</p>'
+    }
+
+    this.$alert(
+      `
+      <div>
+        <p><b>校验结果：</b>
+          <span style="color:${data.available ? '#67C23A' : '#F56C6C'};">
+            ${data.available ? '可用' : '不可用'}
+          </span>
+        </p>
+        <p><b>说明：</b>${data.message}</p>
+        <p><b>设备名称：</b>${device.name || device.model || '-'}</p>
+        <p><b>设备编号：</b>${device.deviceCode || '-'}</p>
+        <p><b>设备当前状态：</b>${device.status || '-'}</p>
+        <p><b>申请时段：</b>${this.format(booking.startTime)} 至 ${this.format(booking.endTime)}</p>
+        <hr/>
+        <p><b>冲突预约：</b></p>
+        ${conflictText}
+      </div>
+      `,
+      '预约时段设备可用性校验',
+      {
+        dangerouslyUseHTMLString: true,
+        confirmButtonText: '确定'
       }
-
-      this.$alert(
-        `当前数据库中该设备运行状态为：【${device.status}】`,
-        '设备实时状态校验',
-        { confirmButtonText: '确定' }
-      )
-    },
+    )
+  } catch (error) {
+    this.$message.error(
+      error.response?.data?.detail || '设备时段校验失败'
+    )
+  }
+},
 
     async approve() {
       try {
